@@ -371,7 +371,25 @@ async function getMergedData() {
   const merged = JSON.parse(JSON.stringify(BASE_DATA));
   for (const ciudad in imported) {
     if (!merged[ciudad]) merged[ciudad] = {};
-    for (const hotel in imported[ciudad]) merged[ciudad][hotel] = imported[ciudad][hotel];
+    for (const hotel in imported[ciudad]) {
+      const imp = imported[ciudad][hotel];
+      // Find matching hotel in BASE_DATA (case-insensitive)
+      const baseKey = Object.keys(merged[ciudad] || {}).find(k => k.toLowerCase() === hotel.toLowerCase());
+      if (baseKey) {
+        // Merge: keep base prices, overlay with imported prices (imported wins on overlap)
+        merged[ciudad][baseKey] = {
+          ...merged[ciudad][baseKey],
+          desayuno: imp.desayuno,
+          divisa: imp.divisa || merged[ciudad][baseKey].divisa || 'EUR',
+          reglas: imp.reglas || [],
+          precios: { ...merged[ciudad][baseKey].precios, ...imp.precios },
+          _id: imp._id
+        };
+      } else {
+        // New hotel not in Excel
+        merged[ciudad][hotel] = imp;
+      }
+    }
   }
   return merged;
 }
