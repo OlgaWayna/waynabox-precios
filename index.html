@@ -246,7 +246,14 @@
         <div class="field" style="margin-bottom:4px">
           <label>Desayuno (precio por persona)</label>
           <input type="number" id="f-desayuno" value="0" min="0" step="0.5" placeholder="0 si no hay o está incluido">
-          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">En la divisa del contrato. Pon 0 si no hay desayuno disponible o está incluido en la tarifa.</div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">En la divisa del contrato. Pon 0 si no hay desayuno disponible.</div>
+        </div>
+        <div class="field" style="margin-bottom:14px">
+          <label>¿Desayuno incluido en tarifa base?</label>
+          <div class="toggle-group">
+            <button class="toggle-btn active" id="btn-desayuno-no" onclick="setDesayunoIncluido(false)">No</button>
+            <button class="toggle-btn" id="btn-desayuno-si" onclick="setDesayunoIncluido(true)">Sí (incluido en precio)</button>
+          </div>
         </div>
         <div class="modal-actions">
           <button class="btn-cancel" onclick="closeImport()">Cancelar</button>
