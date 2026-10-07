@@ -728,6 +728,48 @@ function closeImport() {
   document.getElementById('importModal').classList.remove('open');
 }
 
+
+// ── Pre-fill rules for hotels with hardcoded discounts ───────────────────
+function getHardcodedRules(nombre) {
+  const name = nombre.toUpperCase();
+  if (name.includes('RAFFAELLO')) return [
+    { tipo: 'early_booking', dias: 30, descuento: 10, descripcion: 'Early booking >30 días: -10%' },
+    { tipo: 'early_booking', dias: 14, descuento: 5, descripcion: 'Early booking >14 días: -5%' }
+  ];
+  if (name.includes('MARMARA BUDAPEST')) return [
+    { tipo: 'estancia_minima', noches: 1, descuento: 5, descripcion: 'Mármara >45 días vista, 1 noche: -5%' },
+    { tipo: 'estancia_minima', noches: 2, descuento: 10, descripcion: 'Mármara >45 días vista, 2 noches: -10%' },
+    { tipo: 'estancia_minima', noches: 3, descuento: 15, descripcion: 'Mármara >45 días vista, 3+ noches: -15%' }
+  ];
+  if (name.includes('CLIP')) return [
+    { tipo: 'early_booking', dias: 25, descuento: 8, descripcion: 'Early booking >25 días: -8%' }
+  ];
+  if (name.includes('FOUR POINTS')) return [
+    { tipo: 'early_booking', dias: 30, descuento: 10, descripcion: 'Early booking >30 días: -10%' }
+  ];
+  return [];
+}
+
+function prefillRulesIfNeeded() {
+  const nombre = document.getElementById('f-nombre').value.trim();
+  const rules = getHardcodedRules(nombre);
+  if (rules.length === 0) return;
+  const dContainer = document.getElementById('discount-rows');
+  if (dContainer.children.length > 0) return; // don't overwrite if already has rules
+  for (const r of rules) {
+    addDiscountRow();
+    const rows = dContainer.querySelectorAll('#discount-rows > div');
+    const last = rows[rows.length - 1];
+    const tipoSel = last.querySelector('.dr-tipo');
+    tipoSel.value = r.tipo;
+    updateDiscountRow(tipoSel);
+    last.querySelector('.dr-pct').value = r.descuento;
+    last.querySelector('.dr-desc').value = r.descripcion;
+    const valEl = last.querySelector('.dr-valor');
+    if (valEl) valEl.value = r.dias || r.noches || '';
+  }
+}
+
 function goStep(n) {
   for (let i = 1; i <= 4; i++)
     document.getElementById('form-step-' + i).style.display = i === n ? 'block' : 'none';
@@ -736,6 +778,7 @@ function goStep(n) {
   document.getElementById('import-step-indicator').textContent = titles[n];
 
   if (n === 2 && document.getElementById('price-rows').children.length === 0) addPriceRow();
+  if (n === 3) prefillRulesIfNeeded();
   if (n === 4) buildFormPreview();
 }
 
