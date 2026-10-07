@@ -333,6 +333,7 @@ async function loadImported() {
       result[row.ciudad][row.nombre] = {
         precios: row.precios,
         desayuno: row.desayuno,
+        desayuno_incluido: row.desayuno_incluido || false,
         reglas: row.reglas || [],
         divisa: row.divisa || 'EUR',
         _id: row.id
@@ -380,6 +381,7 @@ async function getMergedData() {
         merged[ciudad][baseKey] = {
           ...merged[ciudad][baseKey],
           desayuno: imp.desayuno,
+          desayuno_incluido: imp.desayuno_incluido || false,
           divisa: imp.divisa || merged[ciudad][baseKey].divisa || 'EUR',
           reglas: imp.reglas || [],
           precios: { ...merged[ciudad][baseKey].precios, ...imp.precios },
@@ -685,7 +687,7 @@ async function calcular() {
 
   if (missing.length > 0)
     html += '<div class="alert warning" style="margin-top:14px"><strong>⚠️ ' + missing.length + ' noche' + (missing.length>1?'s':'') + ' sin tarifa</strong><br><table class="no-rate-table"><tbody>' + missing.map(d => '<tr><td>' + fmtDateDisplay(d) + '</td><td>Sin tarifa</td></tr>').join('') + '</tbody></table></div>';
-  if (desayunoSi && desayunoPorPax === 0)
+  if (desayunoSi && desayunoPorPax === 0 && hotelData.desayuno_incluido === true)
     html += '<div class="alert info" style="margin-top:12px">Este hotel incluye el desayuno en la tarifa base.</div>';
 
   contentDiv.innerHTML = html;
@@ -695,6 +697,9 @@ async function calcular() {
 // ── Form-based Import ────────────────────────────────────────────────────
 function openImport() {
   window._editingHotelId = null;
+  _desayunoIncluido = false;
+  if(document.getElementById('btn-desayuno-si')) document.getElementById('btn-desayuno-si').classList.remove('active');
+  if(document.getElementById('btn-desayuno-no')) document.getElementById('btn-desayuno-no').classList.add('active');
   document.getElementById('importModal').classList.add('open');
   goStep(1);
   // Set default dates
@@ -728,6 +733,13 @@ function goStep(n) {
 }
 
 function formChanged() {}
+
+let _desayunoIncluido = false;
+function setDesayunoIncluido(val) {
+  _desayunoIncluido = val;
+  document.getElementById('btn-desayuno-si').classList.toggle('active', val);
+  document.getElementById('btn-desayuno-no').classList.toggle('active', !val);
+}
 
 function addPriceRow() {
   const container = document.getElementById('price-rows');
@@ -822,6 +834,7 @@ function getFormData() {
   const nombre = document.getElementById('f-nombre').value.trim();
   const divisa = document.getElementById('f-divisa').value;
   const desayuno = parseFloat(document.getElementById('f-desayuno').value) || 0;
+  const desayunoIncluido = _desayunoIncluido;
   const fechaInicio = document.getElementById('f-fecha-inicio').value;
   const fechaFin = document.getElementById('f-fecha-fin').value;
 
@@ -857,7 +870,7 @@ function getFormData() {
     reglas.push(regla);
   }
 
-  return { ciudad, nombre, divisa, desayuno, fechaInicio, fechaFin, precios, reglas };
+  return { ciudad, nombre, divisa, desayuno, desayunoIncluido, fechaInicio, fechaFin, precios, reglas };
 }
 
 function buildFormPreview() {
@@ -918,12 +931,12 @@ async function confirmFormImport() {
   btn.textContent = 'Guardando...';
   btn.disabled = true;
   try {
-    const payload = { ciudad: d.ciudad, nombre: d.nombre, divisa: d.divisa, desayuno: d.desayuno, precios: d.precios, reglas: d.reglas };
+    const payload = { ciudad: d.ciudad, nombre: d.nombre, divisa: d.divisa, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, precios: d.precios, reglas: d.reglas };
     if (window._editingHotelId) {
       await sb.from('hoteles_importados').update(payload).eq('id', window._editingHotelId);
       window._editingHotelId = null;
     } else {
-      await saveHotel(d.ciudad, d.nombre, { precios: d.precios, desayuno: d.desayuno, reglas: d.reglas, divisa: d.divisa });
+      await saveHotel(d.ciudad, d.nombre, { precios: d.precios, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, reglas: d.reglas, divisa: d.divisa });
     }
     closeImport();
     await populateCities();
@@ -1003,6 +1016,9 @@ async function editHotel(id) {
   document.getElementById('f-nombre').value = data.nombre;
   document.getElementById('f-divisa').value = data.divisa || 'EUR';
   document.getElementById('f-desayuno').value = data.desayuno || 0;
+  _desayunoIncluido = data.desayuno_incluido || false;
+  if(document.getElementById('btn-desayuno-si')) document.getElementById('btn-desayuno-si').classList.toggle('active', _desayunoIncluido);
+  if(document.getElementById('btn-desayuno-no')) document.getElementById('btn-desayuno-no').classList.toggle('active', !_desayunoIncluido);
   const precios = data.precios || {};
   const fechas = Object.keys(precios).sort();
   if (fechas.length > 0) {
