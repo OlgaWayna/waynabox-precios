@@ -1,0 +1,1241 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Waynabox · Consulta de precios</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #f7f6f3; --surface: #ffffff; --border: #e4e2dc;
+    --text: #1a1917; --text-muted: #6b6860; --accent: #d4622a;
+    --accent-light: #fdf0ea; --success: #2a7a4b; --success-light: #eaf4ef;
+    --warning: #b45309; --warning-light: #fef3cd; --radius: 10px;
+    --shadow: 0 1px 3px rgba(0,0,0,0.06), 0 4px 16px rgba(0,0,0,0.04);
+  }
+  body { font-family: 'Inter', sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  header { background: var(--text); padding: 18px 32px; display: flex; align-items: center; justify-content: space-between; }
+  header .logo { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
+  header .logo span { color: var(--accent); }
+  header .subtitle { font-size: 12px; color: rgba(255,255,255,0.45); margin-top: 1px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .header-right { display: flex; gap: 10px; align-items: center; }
+  .btn-header { font-family: 'Inter', sans-serif; font-size: 12px; font-weight: 500; padding: 8px 14px; border-radius: 6px; cursor: pointer; transition: background 0.15s; white-space: nowrap; border: 1px solid rgba(255,255,255,0.2); }
+  .btn-import { background: var(--accent); color: #fff; border-color: var(--accent); }
+  .btn-import:hover { background: #c05520; }
+  .btn-admin { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); }
+  .btn-admin:hover { background: rgba(255,255,255,0.15); color: #fff; }
+  .btn-admin.active { background: rgba(212,98,42,0.25); color: var(--accent); border-color: var(--accent); }
+  .admin-badge { display: inline-flex; align-items: center; gap: 5px; font-size: 11px; color: var(--accent); background: var(--accent-light); border: 1px solid #f5c4a8; padding: 4px 10px; border-radius: 20px; font-weight: 600; }
+  .main { max-width: 860px; margin: 0 auto; padding: 32px 24px 60px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 28px; margin-bottom: 16px; }
+  .section-title { font-family: 'Space Grotesk', sans-serif; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 1px; color: var(--text-muted); margin-bottom: 16px; }
+  .field-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  .field-grid.three { grid-template-columns: 1fr 1fr 1fr; }
+  .field { display: flex; flex-direction: column; gap: 6px; }
+  label { font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
+  select, input[type="date"], input[type="number"], input[type="password"] {
+    font-family: 'Inter', sans-serif; font-size: 14px; color: var(--text);
+    background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
+    padding: 10px 12px; width: 100%; outline: none; transition: border-color 0.15s;
+    appearance: none; -webkit-appearance: none;
+  }
+  select { background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b6860' d='M6 8L1 3h10z'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
+  select:focus, input:focus { border-color: var(--accent); background: #fff; }
+  select:disabled { opacity: 0.45; cursor: not-allowed; }
+  .toggle-group { display: flex; gap: 8px; }
+  .toggle-btn { flex: 1; padding: 10px; font-family: 'Inter', sans-serif; font-size: 13px; font-weight: 500; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text-muted); cursor: pointer; transition: all 0.15s; text-align: center; }
+  .toggle-btn.active { background: var(--text); border-color: var(--text); color: #fff; }
+  .toggle-btn:hover:not(.active) { border-color: var(--accent); color: var(--accent); }
+  .calc-btn { width: 100%; padding: 14px; font-family: 'Space Grotesk', sans-serif; font-size: 15px; font-weight: 600; background: var(--accent); color: #fff; border: none; border-radius: 8px; cursor: pointer; transition: background 0.15s, transform 0.1s; letter-spacing: 0.2px; margin-top: 4px; }
+  .calc-btn:hover { background: #c05520; }
+  .calc-btn:active { transform: scale(0.99); }
+  #result { display: none; animation: fadeIn 0.2s ease; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: translateY(0); } }
+  .result-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+  .result-hotel-name { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600; color: var(--text); line-height: 1.3; max-width: 60%; }
+  .result-city { font-size: 12px; color: var(--text-muted); margin-top: 3px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .result-total { text-align: right; }
+  .result-total .amount { font-family: 'Space Grotesk', sans-serif; font-size: 32px; font-weight: 700; color: var(--accent); line-height: 1; }
+  .result-total .amount.has-discount { color: var(--success); }
+  .result-total .amount-eur { font-family: 'Space Grotesk', sans-serif; font-size: 18px; font-weight: 600; color: var(--text-muted); margin-top: 3px; }
+  .result-total .amount-original { font-size: 16px; color: var(--text-muted); text-decoration: line-through; margin-bottom: 2px; font-family: 'Space Grotesk', sans-serif; }
+  .result-total .label { font-size: 11px; color: var(--text-muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .breakdown-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .breakdown-table th { text-align: left; font-size: 10px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.8px; color: var(--text-muted); padding: 0 0 10px 0; border-bottom: 1px solid var(--border); }
+  .breakdown-table td { padding: 9px 0; border-bottom: 1px solid var(--border); color: var(--text); }
+  .breakdown-table td:last-child, .breakdown-table th:last-child { text-align: right; }
+  .breakdown-table tr:last-child td { border-bottom: none; }
+  .date-badge { display: inline-block; font-size: 11px; padding: 2px 7px; border-radius: 4px; font-weight: 500; }
+  .date-badge.special { background: var(--warning-light); color: var(--warning); }
+  .summary-row { display: flex; gap: 12px; margin-top: 16px; flex-wrap: wrap; }
+  .summary-pill { flex: 1; min-width: 100px; background: var(--bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 14px; }
+  .summary-pill .pill-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted); font-weight: 600; margin-bottom: 4px; }
+  .summary-pill .pill-value { font-family: 'Space Grotesk', sans-serif; font-weight: 600; font-size: 15px; }
+  .summary-pill.highlight { border-color: #bbf7d0; background: var(--success-light); }
+  .summary-pill.highlight .pill-label { color: var(--success); }
+  .summary-pill.highlight .pill-value { color: var(--success); }
+  .alert { padding: 12px 14px; border-radius: 8px; font-size: 13px; margin-top: 8px; line-height: 1.5; }
+  .alert.error { background: #fef2f2; border: 1px solid #fecaca; color: #991b1b; }
+  .alert.info { background: var(--success-light); border: 1px solid #bbf7d0; color: var(--success); }
+  .alert.warning { background: var(--warning-light); border: 1px solid #fde68a; color: var(--warning); }
+  .no-rate-table { width: 100%; font-size: 12px; border-collapse: collapse; margin-top: 10px; }
+  .no-rate-table td { padding: 5px 0; border-bottom: 1px dashed var(--border); color: var(--text-muted); }
+  .no-rate-table td:last-child { text-align: right; color: #991b1b; font-weight: 500; }
+  .discount-banner { background: var(--success-light); border: 1px solid #bbf7d0; border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; display: flex; align-items: center; gap: 10px; }
+  .discount-banner .badge { background: var(--success); color: #fff; font-size: 12px; font-weight: 700; padding: 3px 8px; border-radius: 4px; white-space: nowrap; }
+  .discount-banner .desc { font-size: 13px; color: var(--success); }
+  .rate-note { font-size: 11px; color: var(--text-muted); margin-top: 8px; text-align: right; }
+  /* Modals */
+  .modal-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 100; align-items: center; justify-content: center; }
+  .modal-overlay.open { display: flex; }
+  .modal { background: var(--surface); border-radius: 12px; width: 100%; max-width: 620px; margin: 20px; max-height: 90vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,0.2); }
+  .modal-header { padding: 22px 24px 0; display: flex; justify-content: space-between; align-items: center; }
+  .modal-header h2 { font-family: 'Space Grotesk', sans-serif; font-size: 17px; font-weight: 600; }
+  .modal-close { background: none; border: none; font-size: 20px; cursor: pointer; color: var(--text-muted); line-height: 1; padding: 4px; }
+  .modal-body { padding: 20px 24px 24px; }
+  .upload-zone { border: 2px dashed var(--border); border-radius: 8px; padding: 32px 20px; text-align: center; cursor: pointer; transition: all 0.15s; background: var(--bg); }
+  .upload-zone:hover, .upload-zone.drag { border-color: var(--accent); background: var(--accent-light); }
+  .upload-zone .icon { font-size: 28px; margin-bottom: 8px; }
+  .upload-zone p { font-size: 14px; color: var(--text-muted); }
+  .upload-zone strong { color: var(--accent); }
+  #fileInput { display: none; }
+  .processing { text-align: center; padding: 24px; }
+  .spinner { width: 36px; height: 36px; border: 3px solid var(--border); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 12px; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .processing p { font-size: 14px; color: var(--text-muted); }
+  .preview-hotel-card { border: 1px solid var(--border); border-radius: 8px; overflow: hidden; margin-bottom: 12px; }
+  .preview-hotel-header { background: var(--bg); padding: 12px 16px; display: flex; justify-content: space-between; align-items: center; }
+  .preview-hotel-name { font-weight: 600; font-size: 14px; }
+  .preview-hotel-meta { font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+  .preview-hotel-badge { font-size: 11px; background: var(--accent-light); color: var(--accent); padding: 3px 8px; border-radius: 4px; font-weight: 500; }
+  .preview-price-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+  .preview-price-table td { padding: 7px 16px; border-bottom: 1px solid var(--border); }
+  .preview-price-table tr:last-child td { border-bottom: none; }
+  .preview-price-table td:last-child { text-align: right; font-weight: 500; }
+  .preview-conditions { padding: 10px 16px; background: var(--success-light); border-top: 1px solid var(--border); font-size: 12px; color: var(--success); }
+  .modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+  .btn-cancel { flex: 1; padding: 11px; border: 1px solid var(--border); border-radius: 8px; background: var(--bg); font-family: 'Inter', sans-serif; font-size: 14px; cursor: pointer; color: var(--text-muted); }
+  .btn-confirm { flex: 2; padding: 11px; border: none; border-radius: 8px; background: var(--accent); color: #fff; font-family: 'Space Grotesk', sans-serif; font-size: 14px; font-weight: 600; cursor: pointer; }
+  .btn-confirm:hover { background: #c05520; }
+  .pw-modal { max-width: 360px; }
+  .pw-error { font-size: 12px; color: #991b1b; margin-top: 6px; display: none; }
+  .manage-imported { font-size: 12px; color: var(--text-muted); cursor: pointer; text-decoration: underline; }
+  .manage-imported:hover { color: var(--accent); }
+  .price-row input, .dr-extra input { font-size: 13px; }
+  #discount-rows .field label { font-size: 11px; }
+  @media (max-width: 600px) {
+    .field-grid, .field-grid.three { grid-template-columns: 1fr; }
+    .result-hotel-name { max-width: 100%; }
+    .result-header { flex-direction: column; gap: 12px; }
+    .result-total { text-align: left; }
+    header { padding: 14px 16px; }
+    .main { padding: 20px 16px 40px; }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</head>
+<body>
+
+<header>
+  <div>
+    <div class="logo">wayna<span>box</span></div>
+    <div class="subtitle">Consulta de tarifas negociadas</div>
+  </div>
+  <div class="header-right">
+    <div id="admin-badge" style="display:none" class="admin-badge">🔑 Modo admin</div>
+    <button id="btn-import-header" style="display:none" class="btn-header btn-import" onclick="openImport()">＋ Importar contrato</button>
+    <button id="btn-admin-toggle" class="btn-header btn-admin" onclick="toggleAdmin()" style="display:none">Admin</button>
+    <span id="user-email" style="font-size:12px;color:var(--text-muted)"></span>
+    <button id="btn-logout" class="btn-header btn-admin" onclick="logout()" style="display:none">Salir</button>
+  </div>
+</header>
+
+<div id="login-screen" style="display:none;position:fixed;inset:0;background:var(--bg, #f5f3ee);z-index:1000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border:1px solid var(--border, #e5e2da);border-radius:12px;padding:32px 28px;max-width:380px;width:100%;text-align:center">
+    <div class="logo" style="margin-bottom:6px">wayna<span>box</span></div>
+    <div style="font-size:13px;color:var(--text-muted);margin-bottom:24px">Consulta de tarifas negociadas</div>
+    <button onclick="loginGoogle()" style="width:100%;padding:12px;border-radius:8px;border:1px solid #d0cdc5;background:#fff;font-size:14px;font-weight:600;cursor:pointer">Entrar con Google</button>
+    <div style="font-size:12px;color:var(--text-muted);margin-top:12px">Solo cuentas @waynabox.com</div>
+    <div id="login-error" style="display:none;font-size:12px;color:#991b1b;margin-top:12px"></div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="card">
+    <div class="section-title" style="display:flex;justify-content:space-between;align-items:center">
+      <span>Selección</span>
+      <span id="imported-count" style="display:none" class="manage-imported" onclick="openManage()"></span>
+    </div>
+    <div class="field-grid" style="margin-bottom:16px">
+      <div class="field">
+        <label>Ciudad</label>
+        <select id="ciudad" onchange="onCiudadChange()"><option value="">— Elige ciudad —</option></select>
+      </div>
+      <div class="field">
+        <label>Hotel</label>
+        <select id="hotel" disabled onchange="hideResult()"><option value="">— Primero elige ciudad —</option></select>
+      </div>
+    </div>
+    <div class="field-grid" style="margin-bottom:16px;grid-template-columns:1fr 1fr 1fr 1fr">
+      <div class="field"><label>Check-in</label><input type="date" id="checkin" onchange="hideResult()"></div>
+      <div class="field"><label>Check-out</label><input type="date" id="checkout" onchange="hideResult()"></div>
+      <div class="field"><label>Personas</label><input type="number" id="pax" value="1" min="1" max="20" onchange="hideResult()"></div>
+      <div class="field"><label>Habitaciones</label><input type="number" id="habitaciones" value="1" min="1" max="20" onchange="hideResult()"></div>
+    </div>
+    <div class="field" style="margin-bottom:20px">
+      <label>Desayuno</label>
+      <div class="toggle-group">
+        <button class="toggle-btn active" id="btn-no" onclick="setDesayuno(false)">No incluir</button>
+        <button class="toggle-btn" id="btn-si" onclick="setDesayuno(true)">Incluir</button>
+      </div>
+    </div>
+    <button class="calc-btn" onclick="calcular()">Calcular precio total →</button>
+  </div>
+  <div class="card" id="result"><div id="result-content"></div></div>
+</div>
+
+<!-- Import modal -->
+<div class="modal-overlay" id="importModal">
+  <div class="modal" style="max-width:680px">
+    <div class="modal-header">
+      <div>
+        <h2 id="import-modal-title">Añadir hotel</h2>
+        <div id="import-step-indicator" style="font-size:11px;color:var(--text-muted);margin-top:3px"></div>
+      </div>
+      <button class="modal-close" onclick="closeImport()">×</button>
+    </div>
+    <div class="modal-body">
+
+      <!-- Step 1: Basic info -->
+      <div id="form-step-1">
+        <div class="section-title">Información básica</div>
+        <div class="field-grid" style="margin-bottom:14px">
+          <div class="field">
+            <label>Ciudad</label>
+            <input type="text" id="f-ciudad" placeholder="ej: Budapest" oninput="formChanged()">
+          </div>
+          <div class="field">
+            <label>Divisa</label>
+            <select id="f-divisa">
+              <option value="EUR">EUR — Euro</option>
+              <option value="GBP">GBP — Libra esterlina</option>
+              <option value="USD">USD — Dólar</option>
+              <option value="CHF">CHF — Franco suizo</option>
+            </select>
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:14px">
+          <label>Nombre hotel + tipo habitación</label>
+          <input type="text" id="f-nombre" placeholder="ej: CORVIN CENTER SUITES 1-BEDROOM" oninput="formChanged()">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">En mayúsculas. Incluye el tipo de habitación (SINGLE, DOBLE, TWIN, etc.)</div>
+        </div>
+        <div class="field-grid" style="margin-bottom:14px">
+          <div class="field">
+            <label>Fecha inicio contrato</label>
+            <input type="date" id="f-fecha-inicio">
+          </div>
+          <div class="field">
+            <label>Fecha fin contrato</label>
+            <input type="date" id="f-fecha-fin">
+          </div>
+        </div>
+        <div class="field" style="margin-bottom:4px">
+          <label>Desayuno (precio por persona)</label>
+          <input type="number" id="f-desayuno" value="0" min="0" step="0.5" placeholder="0 si no hay o está incluido">
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">En la divisa del contrato. Pon 0 si no hay desayuno disponible.</div>
+        </div>
+        <div class="field" style="margin-bottom:14px">
+          <label>¿Desayuno incluido en tarifa base?</label>
+          <div class="toggle-group">
+            <button class="toggle-btn active" id="btn-desayuno-no" onclick="setDesayunoIncluido(false)">No</button>
+            <button class="toggle-btn" id="btn-desayuno-si" onclick="setDesayunoIncluido(true)">Sí (incluido en precio)</button>
+          </div>
+        </div>
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick="closeImport()">Cancelar</button>
+          <button class="btn-confirm" onclick="goStep(2)">Siguiente → Tarifas</button>
+        </div>
+      </div>
+
+      <!-- Step 2: Prices -->
+      <div id="form-step-2" style="display:none">
+        <div class="section-title">Tarifas por período</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Define los precios por mes. Si el precio es igual todo el año puedes usar solo una fila.</div>
+
+        <div id="price-rows"></div>
+
+        <button onclick="addPriceRow()" style="font-size:13px;color:var(--accent);background:none;border:1px dashed var(--accent);border-radius:6px;padding:8px 16px;cursor:pointer;width:100%;margin-bottom:16px">＋ Añadir período</button>
+
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px 14px;font-size:12px;color:var(--text-muted);margin-bottom:4px">
+          💡 <strong>Suplementos:</strong> Si el contrato tiene un suplemento que se suma al precio base (ej: +£30 en verano), añádelo ya sumado al precio de ese período. El precio que introduzcas aquí es el precio TOTAL por noche.
+        </div>
+
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick="goStep(1)">← Anterior</button>
+          <button class="btn-confirm" onclick="goStep(3)">Siguiente → Descuentos</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Discounts -->
+      <div id="form-step-3" style="display:none">
+        <div class="section-title">Descuentos especiales</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Opcional. Añade solo los descuentos que apliquen.</div>
+
+        <label style="display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;cursor:pointer;font-size:13px">
+          <input type="checkbox" id="f-acumulable" style="margin-top:2px">
+          <span><strong>Descuentos acumulables</strong><br><span style="color:var(--text-muted);font-size:12px">Márcalo solo si el contrato dice que los descuentos se suman. Se aplican uno detrás de otro (ej. -10% y luego -5% sobre el resultado). Desmarcado: solo se aplica el primero que cumpla.</span></span>
+        </label>
+
+        <div id="discount-rows"></div>
+
+        <button onclick="addDiscountRow()" style="font-size:13px;color:var(--accent);background:none;border:1px dashed var(--accent);border-radius:6px;padding:8px 16px;cursor:pointer;width:100%;margin-bottom:16px">＋ Añadir descuento</button>
+
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick="goStep(2)">← Anterior</button>
+          <button class="btn-confirm" onclick="goStep(4)">Siguiente → Revisar</button>
+        </div>
+      </div>
+
+      <!-- Step 4: Preview & confirm -->
+      <div id="form-step-4" style="display:none">
+        <div class="section-title">Resumen — revisa antes de guardar</div>
+        <div id="form-preview"></div>
+        <div class="modal-actions">
+          <button class="btn-cancel" onclick="goStep(3)">← Editar</button>
+          <button class="btn-confirm" onclick="confirmFormImport()">✓ Guardar hotel</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Manage modal -->
+<div class="modal-overlay" id="manageModal">
+  <div class="modal">
+    <div class="modal-header"><h2>Hoteles importados</h2><button class="modal-close" onclick="document.getElementById('manageModal').classList.remove('open')">×</button></div>
+    <div class="modal-body" id="manage-content"></div>
+  </div>
+</div>
+
+<script>
+// Las tarifas del Excel original se migraron a Supabase (12/11/2026). Ya no van dentro de la página.
+const BASE_DATA = {};
+const SUPABASE_URL = 'https://hruapphlncvlbbwbyhdn.supabase.co';
+const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImhydWFwcGhsbmN2bGJid2J5aGRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg3Njg5MDgsImV4cCI6MjA5NDM0NDkwOH0.hQyhWJAOgrn0CplsomrlQ_31g6qJXCp6yhiZeDtjf_0';
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+let desayunoSi = false;
+let isAdmin = false;
+let pendingImport = null;
+let cachedRates = {};
+
+// ── Supabase storage ─────────────────────────────────────────────────────
+async function loadImported() {
+  try {
+    const { data, error } = await sb.from('hoteles_importados').select('*');
+    if (error) throw error;
+    const result = {};
+    for (const row of data) {
+      if (!result[row.ciudad]) result[row.ciudad] = {};
+      result[row.ciudad][row.nombre] = {
+        precios: row.precios,
+        desayuno: row.desayuno,
+        desayuno_incluido: row.desayuno_incluido || false,
+        reglas: row.reglas || [],
+        acumulable: row.acumulable === true,
+        divisa: row.divisa || 'EUR',
+        _id: row.id
+      };
+    }
+    return result;
+  } catch (e) { console.error('loadImported error:', e); return {}; }
+}
+
+async function saveHotel(ciudad, nombre, hotelData) {
+  // Check if exists (upsert by ciudad+nombre)
+  const { data: existing } = await sb.from('hoteles_importados')
+    .select('id').eq('ciudad', ciudad).eq('nombre', nombre).single();
+  
+  const payload = {
+    ciudad, nombre,
+    divisa: hotelData.divisa || 'EUR',
+    desayuno: hotelData.desayuno || 0,
+    desayuno_incluido: hotelData.desayuno_incluido || false,
+    precios: hotelData.precios,
+    reglas: hotelData.reglas || [],
+    acumulable: hotelData.acumulable === true
+  };
+
+  const { error } = existing
+    ? await sb.from('hoteles_importados').update(payload).eq('id', existing.id)
+    : await sb.from('hoteles_importados').insert(payload);
+  if (error) throw error;
+}
+
+async function deleteHotelFromDB(id) {
+  await sb.from('hoteles_importados').delete().eq('id', id);
+}
+
+async function getMergedData() {
+  const imported = await loadImported();
+  const merged = JSON.parse(JSON.stringify(BASE_DATA));
+  for (const ciudad in imported) {
+    if (!merged[ciudad]) merged[ciudad] = {};
+    for (const hotel in imported[ciudad]) {
+      const imp = imported[ciudad][hotel];
+      // Find matching hotel in BASE_DATA (case-insensitive)
+      const baseKey = Object.keys(merged[ciudad] || {}).find(k => k.toLowerCase() === hotel.toLowerCase());
+      if (baseKey) {
+        // Merge: keep base prices, overlay with imported prices (imported wins on overlap)
+        merged[ciudad][baseKey] = {
+          ...merged[ciudad][baseKey],
+          desayuno: imp.desayuno,
+          desayuno_incluido: imp.desayuno_incluido || false,
+          divisa: imp.divisa || merged[ciudad][baseKey].divisa || 'EUR',
+          reglas: imp.reglas || [],
+          acumulable: imp.acumulable === true,
+          precios: { ...merged[ciudad][baseKey].precios, ...imp.precios },
+          _id: imp._id
+        };
+      } else {
+        // New hotel not in Excel
+        merged[ciudad][hotel] = imp;
+      }
+    }
+  }
+  return merged;
+}
+
+// ── Exchange rates ────────────────────────────────────────────────────────
+async function getRate(from, to) {
+  if (from === to) return 1;
+  const key = from + '_' + to;
+  if (cachedRates[key]) return cachedRates[key];
+  const apis = [
+    () => fetch('https://api.frankfurter.app/latest?from=' + from + '&to=' + to).then(r=>r.json()).then(d=>d.rates[to]),
+    () => fetch('https://open.er-api.com/v6/latest/' + from).then(r=>r.json()).then(d=>d.rates[to]),
+  ];
+  for (const api of apis) {
+    try { const rate = await api(); if (rate) { cachedRates[key] = rate; return rate; } } catch {}
+  }
+  const fallback = { 'GBP_EUR': 1.18, 'EUR_GBP': 0.85, 'USD_EUR': 0.92 };
+  return fallback[from + '_' + to] || null;
+}
+
+// ── Formatting ────────────────────────────────────────────────────────────
+function fmt(v, symbol) {
+  return symbol + v.toFixed(2).replace(/\.00$/, '');
+}
+function fmtEur(v) { return fmt(v, '€'); }
+function fmtGBP(v) { return fmt(v, '£'); }
+function fmtDual(v, divisa, rate) {
+  if (divisa !== 'EUR' && rate) {
+    const eur = v * rate;
+    return fmt(v, currencySymbol(divisa)) + ' <span style="color:var(--text-muted);font-size:11px">(' + fmtEur(eur) + ')</span>';
+  }
+  return fmtEur(v);
+}
+function currencySymbol(divisa) {
+  const symbols = { GBP: '£', EUR: '€', USD: '$', CHF: 'CHF ' };
+  return symbols[divisa] || divisa + ' ';
+}
+
+// ── Admin ─────────────────────────────────────────────────────────────────
+// El modo admin ya no usa contraseña: lo decide la base de datos (tabla usuarios_admin).
+let puedeSerAdmin = false;
+function toggleAdmin() {
+  if (!puedeSerAdmin) return;
+  isAdmin = !isAdmin;
+  updateAdminUI();
+}
+function updateAdminUI() {
+  document.getElementById('admin-badge').style.display = isAdmin ? 'inline-flex' : 'none';
+  document.getElementById('btn-import-header').style.display = isAdmin ? 'inline-block' : 'none';
+  document.getElementById('btn-admin-toggle').textContent = isAdmin ? 'Salir de admin' : 'Admin';
+  document.getElementById('btn-admin-toggle').classList.toggle('active', isAdmin);
+}
+
+// ── Abre la app con los datos que vienen en el enlace (?ciudad=...&hotel=...) ──
+async function aplicarParametrosURL() {
+  const p = new URLSearchParams(location.search);
+  if (!p.has('ciudad')) return;
+
+  const elegir = (select, valor) => {
+    const opts = [...select.options];
+    const o = opts.find(o => o.value === valor) ||
+              opts.find(o => o.value.toLowerCase().includes(valor.toLowerCase()));
+    if (o) select.value = o.value;
+    return !!o;
+  };
+
+  if (!elegir(document.getElementById('ciudad'), p.get('ciudad'))) return;
+  await onCiudadChange();
+
+  const hotelOk = p.has('hotel') && elegir(document.getElementById('hotel'), p.get('hotel'));
+
+  ['checkin', 'checkout', 'pax', 'habitaciones'].forEach(k => {
+    if (p.has(k)) document.getElementById(k).value = p.get(k);
+  });
+
+  if (p.has('desayuno')) setDesayuno(p.get('desayuno') === 'si');
+
+  if (hotelOk) await calcular();
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────
+const DOMINIO = 'waynabox.com';
+
+async function loginGoogle() {
+  const { error } = await sb.auth.signInWithOAuth({
+    provider: 'google',
+    options: { redirectTo: location.href, queryParams: { hd: DOMINIO, prompt: 'select_account' } }
+  });
+  if (error) mostrarLogin('No se pudo iniciar sesión: ' + error.message);
+}
+
+async function logout() {
+  await sb.auth.signOut();
+  location.reload();
+}
+
+function mostrarLogin(msg) {
+  document.getElementById('login-screen').style.display = 'flex';
+  const e = document.getElementById('login-error');
+  e.textContent = msg || '';
+  e.style.display = msg ? 'block' : 'none';
+}
+
+// Devuelve la sesión si es una cuenta @waynabox.com; si no, muestra el login.
+async function comprobarSesion() {
+  const { data: { session } } = await sb.auth.getSession();
+  if (!session) { mostrarLogin(); return null; }
+  const email = (session.user.email || '').toLowerCase();
+  if (!email.endsWith('@' + DOMINIO)) {
+    await sb.auth.signOut();
+    mostrarLogin('La cuenta ' + email + ' no es de Waynabox. Entra con tu cuenta @' + DOMINIO + '.');
+    return null;
+  }
+  document.getElementById('user-email').textContent = email;
+  document.getElementById('btn-logout').style.display = 'inline-block';
+  const { data: esAdmin } = await sb.rpc('es_admin');
+  puedeSerAdmin = esAdmin === true;
+  document.getElementById('btn-admin-toggle').style.display = puedeSerAdmin ? 'inline-block' : 'none';
+  return session;
+}
+
+window.onload = async () => {
+  if (!(await comprobarSesion())) return;
+  await populateCities();
+  const today = new Date(), tom = new Date(today);
+  tom.setDate(today.getDate() + 1);
+  document.getElementById('checkin').value = fmtLocalDate(today);
+  document.getElementById('checkout').value = fmtLocalDate(tom);
+  updateImportedCount();
+  await aplicarParametrosURL();
+};
+
+async function populateCities() {
+  const merged = await getMergedData();
+  const sel = document.getElementById('ciudad');
+  const prev = sel.value;
+  sel.innerHTML = '<option value="">— Elige ciudad —</option>';
+  Object.keys(merged).sort((a,b) => a.localeCompare(b,'es')).forEach(c => {
+    const opt = document.createElement('option');
+    opt.value = c; opt.textContent = c;
+    if (c === prev) opt.selected = true;
+    sel.appendChild(opt);
+  });
+}
+
+async function onCiudadChange() {
+  const ciudad = document.getElementById('ciudad').value;
+  const hotelSel = document.getElementById('hotel');
+  const merged = await getMergedData();
+  const imported = await loadImported();
+  hotelSel.innerHTML = '';
+  if (!ciudad) { hotelSel.innerHTML = '<option value="">— Primero elige ciudad —</option>'; hotelSel.disabled = true; return; }
+  hotelSel.disabled = false;
+  const def = document.createElement('option'); def.value = ''; def.textContent = '— Elige hotel —';
+  hotelSel.appendChild(def);
+  Object.keys(merged[ciudad]).sort((a,b) => a.localeCompare(b,'es')).forEach(h => {
+    const opt = document.createElement('option'); opt.value = h;
+    opt.textContent = h;
+    hotelSel.appendChild(opt);
+  });
+  hideResult();
+}
+
+async function updateImportedCount() {
+  const imp = await loadImported();
+  const total = Object.values(imp).reduce((s,c) => s + Object.keys(c).length, 0);
+  const el = document.getElementById('imported-count');
+  if (total > 0) { el.style.display = 'inline'; el.textContent = total + ' hotel' + (total>1?'es':'') + ' importado' + (total>1?'s':'') + ' · gestionar'; }
+  else el.style.display = 'none';
+}
+
+function setDesayuno(val) {
+  desayunoSi = val;
+  document.getElementById('btn-si').classList.toggle('active', val);
+  document.getElementById('btn-no').classList.toggle('active', !val);
+  hideResult();
+}
+function hideResult() { document.getElementById('result').style.display = 'none'; }
+function fmtDate(d) { return d.toISOString().split('T')[0]; }
+// Fecha de HOY según el reloj local (Madrid). toISOString() daría el día anterior entre las 00:00 y las 01:00/02:00.
+function fmtLocalDate(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+function fmtDateDisplay(d) { const [y,m,day] = d.split('-'); return day+'/'+m+'/'+y; }
+function getDatesInRange(ci, co) {
+  const dates = [], cur = new Date(ci), end = new Date(co);
+  while (cur < end) { dates.push(fmtDate(cur)); cur.setUTCDate(cur.getUTCDate()+1); }
+  return dates;
+}
+
+// ── Special rules ─────────────────────────────────────────────────────────
+async function applySpecialRules(hotel, checkin, today, numNights, pax) {
+  const name = hotel.toUpperCase();
+  const daysAhead = Math.floor((new Date(checkin) - new Date(today)) / 86400000);
+
+  if (name.includes('RAFFAELLO')) {
+    if (daysAhead > 30) return { factor: 0.90, label: 'Early booking >30 días', pct: '10%' };
+    if (daysAhead > 14) return { factor: 0.95, label: 'Early booking >14 días', pct: '5%' };
+  }
+  if (name.includes('MARMARA BUDAPEST 2026')) {
+    if (daysAhead > 45) {
+      if (numNights === 1) return { factor: 0.95, label: 'Mármara >45 días, 1 noche', pct: '5%' };
+      if (numNights === 2) return { factor: 0.90, label: 'Mármara >45 días, 2 noches', pct: '10%' };
+      if (numNights >= 3) return { factor: 0.85, label: 'Mármara >45 días, 3+ noches', pct: '15%' };
+    }
+  }
+  // Contrato Clip: "Bookings made 25 days prior arrival" → desde 25 días incluido, sin mínimo de noches.
+  // Regla fija: cubre "Clip Hotel" y "Clip Hotel Triple" (este último sin reglas en su ficha).
+  if (name.includes('CLIP') && daysAhead >= 25)
+    return { factor: 0.92, label: 'Early booking 25 días o más: -8%', pct: '8%' };
+  if (name.includes('RINA') && new Date(today) <= new Date('2026-03-31'))
+    return { factor: 0.90, label: 'Rina — contratación antes 31/03/2026', pct: '10%' };
+  if (name.includes('FOUR POINTS') && daysAhead > 30)
+    return { factor: 0.90, label: 'Early booking >30 días', pct: '10%' };
+  if (name.includes('MONSIGNY')) {
+    const bDate = new Date(today), cDate = new Date(checkin);
+    const inBooking = bDate >= new Date('2025-11-21') && bDate <= new Date('2025-12-03');
+    const inP1 = cDate >= new Date('2025-11-21') && cDate <= new Date('2026-03-15') && numNights >= 2;
+    const inP2 = cDate >= new Date('2026-04-12') && cDate <= new Date('2026-04-17') && numNights >= 3;
+    if (inBooking && (inP1 || inP2)) return { factor: 0.80, label: 'Promo Black Friday Monsigny', pct: '20%' };
+  }
+
+  const imported = await loadImported();
+  const hotelCleanLower = hotel.replace(' ★','').trim().toLowerCase();
+  for (const ciudad in imported) {
+    const hotelKey = Object.keys(imported[ciudad]).find(k => k.toLowerCase() === hotelCleanLower);
+    const h = hotelKey && imported[ciudad][hotelKey];
+    if (h?.reglas) {
+      let factor = 1; const labels = [];
+      for (const r of h.reglas) {
+        if (r.tipo === 'min_pax') {            // se mantiene como estaba
+          const minPax = r.pax || parseInt(r.hasta) || 0; // fallback: hasta field used as pax
+          if (minPax && pax >= minPax)
+            return { tipo: 'min_pax', pax: minPax, descuento: r.descuento, label: r.descripcion, pct: r.descuento + '%' };
+          continue;
+        }
+        const aplica =
+          (r.tipo === 'early_booking'      && r.dias   && daysAhead >= r.dias) ||   // "21 días" = desde 21 incluido
+          (r.tipo === 'fecha_contratacion' && r.hasta  && new Date(today) <= new Date(r.hasta)) ||
+          (r.tipo === 'estancia_minima'    && r.noches && numNights >= r.noches);
+        if (!aplica) continue;
+        if (!h.acumulable)                       // NO acumulable: como antes, el primero que cumple
+          return { factor: 1 - r.descuento / 100, label: r.descripcion, pct: r.descuento + '%' };
+        factor *= 1 - r.descuento / 100;         // acumulable: se encadenan
+        labels.push(r.descripcion);
+      }
+      if (factor < 1)
+        return { factor, label: labels.join(' + '), pct: String(Math.round((1 - factor) * 1000) / 10).replace('.', ',') + '%' };
+    }
+  }
+  return null;
+}
+
+// ── Calculator ────────────────────────────────────────────────────────────
+async function calcular() {
+  const ciudad   = document.getElementById('ciudad').value;
+  const hotel    = document.getElementById('hotel').value;
+  const checkin  = document.getElementById('checkin').value;
+  const checkout = document.getElementById('checkout').value;
+  const pax      = parseInt(document.getElementById('pax').value) || 1;
+  const habs     = parseInt(document.getElementById('habitaciones').value) || 1;
+  const today    = fmtLocalDate(new Date());
+  const merged   = await getMergedData();
+  const resultDiv  = document.getElementById('result');
+  const contentDiv = document.getElementById('result-content');
+  resultDiv.style.display = 'block';
+
+  if (!ciudad || !hotel) { contentDiv.innerHTML = '<div class="alert error">Selecciona ciudad y hotel.</div>'; return; }
+  if (!checkin || !checkout) { contentDiv.innerHTML = '<div class="alert error">Introduce las fechas.</div>'; return; }
+  if (checkin >= checkout) { contentDiv.innerHTML = '<div class="alert error">El check-out debe ser posterior al check-in.</div>'; return; }
+
+  const hotelClean     = hotel.replace(' ★', '').trim();
+  const hotelData      = merged[ciudad][hotel] || merged[ciudad][hotelClean];
+  const precios        = hotelData.precios;
+  const desayunoPorPax = hotelData.desayuno || 0;
+  const divisa         = hotelData.divisa || 'EUR';
+  const isNonEur       = divisa !== 'EUR';
+  const rate           = isNonEur ? await getRate(divisa, 'EUR') : null;
+
+  const nights  = getDatesInRange(checkin, checkout);
+  const missing = nights.filter(d => precios[d] === undefined);
+  const found   = nights.filter(d => precios[d] !== undefined);
+
+  if (found.length === 0) { contentDiv.innerHTML = '<div class="alert error"><strong>Sin tarifa disponible</strong><br>No hay precios para este período.</div>'; return; }
+
+  const habTotal      = found.reduce((s,d) => s + precios[d], 0) * habs;
+  const desayunoTotal = (desayunoSi && desayunoPorPax > 0) ? desayunoPorPax * pax * found.length : 0;
+  const rule          = await applySpecialRules(hotelClean, checkin, today, found.length, pax);
+  let habFinal, discountAmt;
+  if (rule && rule.tipo === 'min_pax') {
+    // 3rd person discount: extra person pays (price_per_person * (1 - discount%))
+    // price_per_person = habTotal / found.length / 2  (base double occupancy)
+    const pricePerPersonPerNight = (habTotal / found.length) / 2;
+    const extraPersonTotal = pricePerPersonPerNight * (1 - rule.descuento/100) * found.length;
+    habFinal = habTotal + extraPersonTotal;
+    discountAmt = -(extraPersonTotal); // negative = added cost shown as "extra"
+  } else {
+    habFinal = rule ? habTotal * rule.factor : habTotal;
+    discountAmt = habTotal - habFinal;
+  }
+  const finalTotal    = habFinal + desayunoTotal;
+  const finalEur      = isNonEur && rate ? finalTotal * rate : finalTotal;
+
+  const breakdown = found.map(d => ({ date: d, precio: precios[d] }));
+  const allPrices = breakdown.map(b => b.precio);
+  const hasVar    = [...new Set(allPrices)].length > 1;
+  const groups = []; let cur = null;
+  for (const b of breakdown) {
+    if (cur && cur.precio === b.precio) cur.dates.push(b.date);
+    else { cur = { precio: b.precio, dates: [b.date] }; groups.push(cur); }
+  }
+
+  const hasDiscount = rule !== null;
+  const isExtraPax = rule && rule.tipo === 'min_pax';
+  let html = '';
+  if (hasDiscount && !isExtraPax) html += '<div class="discount-banner"><span class="badge">-' + rule.pct + '</span><span class="desc">' + rule.label + '</span></div>';
+  if (isExtraPax) html += '<div class="discount-banner"><span class="badge" style="background:var(--warning)">3ª pax</span><span class="desc">' + rule.label + ' — tarifa reducida</span></div>';
+
+  // Header with dual currency for non-EUR
+  const totalDisplay = isNonEur && rate
+    ? fmt(finalTotal, currencySymbol(divisa))
+    : fmtEur(finalTotal);
+  const origDisplay = isNonEur && rate
+    ? fmt(habTotal + desayunoTotal, currencySymbol(divisa))
+    : fmtEur(habTotal + desayunoTotal);
+
+  html += '<div class="result-header"><div><div class="result-hotel-name">' + hotel + '</div><div class="result-city">' + ciudad + '</div></div>';
+  html += '<div class="result-total">';
+  if (hasDiscount && !isExtraPax) html += '<div class="amount-original">' + origDisplay + '</div>';
+  html += '<div class="amount' + (hasDiscount && !isExtraPax ? ' has-discount' : '') + '">' + totalDisplay + '</div>';
+  if (isNonEur && rate) html += '<div class="amount-eur">' + fmtEur(finalEur) + '</div>';
+  html += '<div class="label">Total ' + found.length + ' noche' + (found.length>1?'s':'') + ' · ' + pax + ' pax</div>';
+  html += '</div></div>';
+
+  // Pills
+  html += '<div class="summary-row">';
+  html += '<div class="summary-pill"><div class="pill-label">Noches</div><div class="pill-value">' + found.length + '</div></div>';
+  if (habs > 1) html += '<div class="summary-pill"><div class="pill-label">Habitaciones</div><div class="pill-value">' + habs + '</div></div>';
+  html += '<div class="summary-pill"><div class="pill-label">Precio medio/noche</div><div class="pill-value">' + fmtDual(habTotal/found.length, divisa, rate) + '</div></div>';
+  if (desayunoSi && desayunoPorPax > 0) {
+    html += '<div class="summary-pill"><div class="pill-label">Habitación</div><div class="pill-value">' + fmtDual(habFinal, divisa, rate) + '</div></div>';
+    html += '<div class="summary-pill"><div class="pill-label">Desayuno (' + pax + ' pax)</div><div class="pill-value">' + fmtDual(desayunoTotal, divisa, rate) + '</div></div>';
+  }
+  if (hasDiscount && !isExtraPax) html += '<div class="summary-pill highlight"><div class="pill-label">Ahorro</div><div class="pill-value">-' + fmtDual(discountAmt, divisa, rate) + '</div></div>';
+  if (isExtraPax) html += '<div class="summary-pill" style="border-color:#fde68a;background:var(--warning-light)"><div class="pill-label" style="color:var(--warning)">3ª persona</div><div class="pill-value" style="color:var(--warning)">' + fmtDual(-discountAmt, divisa, rate) + '</div></div>';
+  html += '</div>';
+
+  // Breakdown table
+  html += '<table class="breakdown-table" style="margin-top:20px"><thead><tr><th>Período</th><th>Noches</th><th>Precio/noche</th><th>Subtotal hab.</th></tr></thead><tbody>';
+  for (const g of groups) {
+    const n = g.dates.length, sub = g.precio * n;
+    const lbl = n === 1 ? fmtDateDisplay(g.dates[0]) : fmtDateDisplay(g.dates[0]) + ' – ' + fmtDateDisplay(g.dates[g.dates.length-1]);
+    const isSpecial = g.precio === Math.max(...allPrices) && hasVar;
+    html += '<tr><td>' + lbl + (isSpecial ? ' <span class="date-badge special">precio especial</span>' : '') + '</td><td>' + n + '</td><td>' + fmtDual(g.precio, divisa, rate) + (habs > 1 ? ' × ' + habs + ' hab' : '') + '</td><td><strong>' + fmtDual(sub, divisa, rate) + '</strong></td></tr>';
+  }
+  if (desayunoSi && desayunoPorPax > 0)
+    html += '<tr><td colspan="2">Desayuno — ' + fmtDual(desayunoPorPax, divisa, rate) + ' × ' + pax + ' pax × ' + found.length + ' noches</td><td></td><td><strong>' + fmtDual(desayunoTotal, divisa, rate) + '</strong></td></tr>';
+  if (hasDiscount && !isExtraPax)
+    html += '<tr><td colspan="3" style="color:var(--success);font-weight:500">Descuento habitación (' + rule.pct + ')</td><td style="color:var(--success);font-weight:600">-' + fmtDual(discountAmt, divisa, rate) + '</td></tr>';
+  if (isExtraPax)
+    html += '<tr><td colspan="3" style="color:var(--warning);font-weight:500">3ª persona (' + rule.pct + '% dto. s/tarifa por persona)</td><td style="color:var(--warning);font-weight:600">+' + fmtDual(-discountAmt, divisa, rate) + '</td></tr>';
+  html += '</tbody></table>';
+
+  if (isNonEur && rate)
+    html += '<div class="rate-note">Tipo de cambio en tiempo real: 1 ' + divisa + ' = ' + rate.toFixed(4) + ' EUR</div>';
+
+  if (missing.length > 0)
+    html += '<div class="alert warning" style="margin-top:14px"><strong>⚠️ ' + missing.length + ' noche' + (missing.length>1?'s':'') + ' sin tarifa</strong><br><table class="no-rate-table"><tbody>' + missing.map(d => '<tr><td>' + fmtDateDisplay(d) + '</td><td>Sin tarifa</td></tr>').join('') + '</tbody></table></div>';
+  if (desayunoSi && desayunoPorPax === 0 && hotelData.desayuno_incluido === true)
+    html += '<div class="alert info" style="margin-top:12px">Este hotel incluye el desayuno en la tarifa base.</div>';
+
+  contentDiv.innerHTML = html;
+  resultDiv.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+// ── Form-based Import ────────────────────────────────────────────────────
+function openImport() {
+  window._editingHotelId = null;
+  _desayunoIncluido = false;
+  if(document.getElementById('btn-desayuno-si')) document.getElementById('btn-desayuno-si').classList.remove('active');
+  if(document.getElementById('btn-desayuno-no')) document.getElementById('btn-desayuno-no').classList.add('active');
+  document.getElementById('importModal').classList.add('open');
+  goStep(1);
+  // Set default dates
+  const today = new Date(), nextYear = new Date(today);
+  nextYear.setFullYear(today.getFullYear() + 1);
+  document.getElementById('f-fecha-inicio').value = fmtLocalDate(today);
+  document.getElementById('f-fecha-fin').value = fmtLocalDate(nextYear);
+  document.getElementById('f-ciudad').value = '';
+  document.getElementById('f-nombre').value = '';
+  document.getElementById('f-desayuno').value = '0';
+  document.getElementById('f-divisa').value = 'EUR';
+  document.getElementById('f-acumulable').checked = false;
+  // Init with one price row and no discount rows
+  document.getElementById('price-rows').innerHTML = '';
+  document.getElementById('discount-rows').innerHTML = '';
+  addPriceRow();
+}
+
+function closeImport() {
+  document.getElementById('importModal').classList.remove('open');
+}
+
+
+// ── Pre-fill rules for hotels with hardcoded discounts ───────────────────
+function getHardcodedRules(nombre) {
+  const name = nombre.toUpperCase();
+  if (name.includes('RAFFAELLO')) return [
+    { tipo: 'early_booking', dias: 30, descuento: 10, descripcion: 'Early booking >30 días: -10%' },
+    { tipo: 'early_booking', dias: 14, descuento: 5, descripcion: 'Early booking >14 días: -5%' }
+  ];
+  if (name.includes('MARMARA BUDAPEST')) return [
+    { tipo: 'estancia_minima', noches: 1, descuento: 5, descripcion: 'Mármara >45 días vista, 1 noche: -5%' },
+    { tipo: 'estancia_minima', noches: 2, descuento: 10, descripcion: 'Mármara >45 días vista, 2 noches: -10%' },
+    { tipo: 'estancia_minima', noches: 3, descuento: 15, descripcion: 'Mármara >45 días vista, 3+ noches: -15%' }
+  ];
+  if (name.includes('CLIP')) return [
+    { tipo: 'early_booking', dias: 25, descuento: 8, descripcion: 'Early booking 25 días o más: -8%' }
+  ];
+  if (name.includes('FOUR POINTS')) return [
+    { tipo: 'early_booking', dias: 30, descuento: 10, descripcion: 'Early booking >30 días: -10%' }
+  ];
+  return [];
+}
+
+function prefillRulesIfNeeded() {
+  const nombre = document.getElementById('f-nombre').value.trim();
+  const rules = getHardcodedRules(nombre);
+  if (rules.length === 0) return;
+  const dContainer = document.getElementById('discount-rows');
+  if (dContainer.children.length > 0) return; // don't overwrite if already has rules
+  for (const r of rules) {
+    addDiscountRow();
+    const rows = dContainer.querySelectorAll('#discount-rows > div');
+    const last = rows[rows.length - 1];
+    const tipoSel = last.querySelector('.dr-tipo');
+    tipoSel.value = r.tipo;
+    updateDiscountRow(tipoSel);
+    last.querySelector('.dr-pct').value = r.descuento;
+    last.querySelector('.dr-desc').value = r.descripcion;
+    const valEl = last.querySelector('.dr-valor');
+    if (valEl) valEl.value = r.dias || r.noches || '';
+  }
+}
+
+function goStep(n) {
+  for (let i = 1; i <= 4; i++)
+    document.getElementById('form-step-' + i).style.display = i === n ? 'block' : 'none';
+  const titles = ['', 'Añadir hotel — Paso 1 de 3: Información básica', 'Paso 2 de 3: Tarifas', 'Paso 3 de 3: Descuentos', 'Confirmar'];
+  document.getElementById('import-modal-title').textContent = n < 4 ? 'Añadir hotel' : 'Revisar y guardar';
+  document.getElementById('import-step-indicator').textContent = titles[n];
+
+  if (n === 2 && document.getElementById('price-rows').children.length === 0) addPriceRow();
+  if (n === 3) prefillRulesIfNeeded();
+  if (n === 4) buildFormPreview();
+}
+
+function formChanged() {}
+
+let _desayunoIncluido = false;
+function setDesayunoIncluido(val) {
+  _desayunoIncluido = val;
+  document.getElementById('btn-desayuno-si').classList.toggle('active', val);
+  document.getElementById('btn-desayuno-no').classList.toggle('active', !val);
+}
+
+function addPriceRow() {
+  const container = document.getElementById('price-rows');
+  const idx = container.children.length;
+  const div = document.createElement('div');
+  div.className = 'price-row';
+  div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 80px 36px;gap:8px;margin-bottom:10px;align-items:end';
+  div.innerHTML = `
+    <div class="field">
+      ${idx === 0 ? '<label>Desde</label>' : ''}
+      <input type="date" class="pr-desde" placeholder="Desde">
+    </div>
+    <div class="field">
+      ${idx === 0 ? '<label>Hasta (inclusive)</label>' : ''}
+      <input type="date" class="pr-hasta" placeholder="Hasta">
+    </div>
+    <div class="field">
+      ${idx === 0 ? '<label>Precio/noche</label>' : ''}
+      <input type="number" class="pr-precio" placeholder="0.00" min="0" step="0.01">
+    </div>
+    <div style="${idx === 0 ? 'padding-top:22px' : ''}">
+      <button onclick="this.closest('.price-row').remove()" style="width:36px;height:38px;border:1px solid #fecaca;border-radius:6px;background:none;color:#991b1b;cursor:pointer;font-size:16px">×</button>
+    </div>`;
+  container.appendChild(div);
+
+  // Pre-fill dates based on previous row
+  if (idx > 0) {
+    const prevRow = container.children[idx - 1];
+    const prevHasta = prevRow.querySelector('.pr-hasta').value;
+    if (prevHasta) {
+      const nextDay = new Date(prevHasta);
+      nextDay.setUTCDate(nextDay.getUTCDate() + 1);
+      div.querySelector('.pr-desde').value = fmtDate(nextDay);
+    }
+  } else {
+    div.querySelector('.pr-desde').value = document.getElementById('f-fecha-inicio').value;
+    div.querySelector('.pr-hasta').value = document.getElementById('f-fecha-fin').value;
+  }
+}
+
+function addDiscountRow() {
+  const container = document.getElementById('discount-rows');
+  const div = document.createElement('div');
+  div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;background:var(--bg)';
+  div.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="field">
+        <label>Tipo de descuento</label>
+        <select class="dr-tipo" onchange="updateDiscountRow(this)">
+          <option value="early_booking">Early booking (días de antelación)</option>
+          <option value="estancia_minima">Estancia mínima (noches)</option>
+          <option value="min_pax">Mínimo de personas (pax)</option>
+          <option value="fecha_contratacion">Fecha límite de contratación</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>Descuento (%)</label>
+        <input type="number" class="dr-pct" placeholder="10" min="1" max="100" step="1">
+      </div>
+    </div>
+    <div class="dr-extra" style="margin-bottom:10px">
+      <div class="field">
+        <label>Días de antelación mínimos</label>
+        <input type="number" class="dr-valor" placeholder="30" min="1">
+      </div>
+    </div>
+    <div class="field">
+      <label>Descripción (visible al equipo)</label>
+      <input type="text" class="dr-desc" placeholder="ej: Early booking más de 30 días: -10%">
+    </div>
+    <button onclick="this.closest('div[style]').remove()" style="font-size:12px;color:#991b1b;background:none;border:none;cursor:pointer;margin-top:8px">Eliminar descuento</button>`;
+  container.appendChild(div);
+}
+
+function updateDiscountRow(sel) {
+  const row = sel.closest('div[style]');
+  const extra = row.querySelector('.dr-extra');
+  const tipo = sel.value;
+  if (tipo === 'early_booking') {
+    extra.innerHTML = '<div class="field"><label>Días de antelación mínimos</label><input type="number" class="dr-valor" placeholder="30" min="1"></div>';
+  } else if (tipo === 'estancia_minima') {
+    extra.innerHTML = '<div class="field"><label>Número mínimo de noches</label><input type="number" class="dr-valor" placeholder="7" min="1"></div>';
+  } else if (tipo === 'min_pax') {
+    extra.innerHTML = '<div class="field"><label>Número mínimo de personas</label><input type="number" class="dr-valor" placeholder="2" min="1"></div>';
+  } else {
+    extra.innerHTML = '<div class="field"><label>Fecha límite de contratación</label><input type="date" class="dr-valor"></div>';
+  }
+}
+
+function getFormData() {
+  const ciudad = document.getElementById('f-ciudad').value.trim();
+  const nombre = document.getElementById('f-nombre').value.trim();
+  const divisa = document.getElementById('f-divisa').value;
+  const desayuno = parseFloat(document.getElementById('f-desayuno').value) || 0;
+  const desayunoIncluido = _desayunoIncluido;
+  const fechaInicio = document.getElementById('f-fecha-inicio').value;
+  const fechaFin = document.getElementById('f-fecha-fin').value;
+
+  // Build daily prices from period rows
+  const precios = {};
+  const priceRows = document.querySelectorAll('.price-row');
+  for (const row of priceRows) {
+    const desde = row.querySelector('.pr-desde').value;
+    const hasta = row.querySelector('.pr-hasta').value;
+    const precio = parseFloat(row.querySelector('.pr-precio').value);
+    if (!desde || !hasta || !precio) continue;
+    const cur = new Date(desde);
+    const end = new Date(hasta);
+    while (cur <= end) {
+      precios[fmtDate(cur)] = precio;
+      cur.setUTCDate(cur.getUTCDate() + 1);
+    }
+  }
+
+  // Build rules
+  const reglas = [];
+  const discountRows = document.querySelectorAll('#discount-rows > div');
+  for (const row of discountRows) {
+    const tipo = row.querySelector('.dr-tipo').value;
+    const pct = parseFloat(row.querySelector('.dr-pct').value);
+    const valor = row.querySelector('.dr-valor').value;
+    const desc = row.querySelector('.dr-desc').value.trim();
+    if (!pct || !valor) continue;
+    const regla = { tipo, descuento: pct, descripcion: desc || tipo };
+    if (tipo === 'early_booking') regla.dias = parseInt(valor);
+    else if (tipo === 'estancia_minima') regla.noches = parseInt(valor);
+    else regla.hasta = valor;
+    reglas.push(regla);
+  }
+
+  const acumulable = document.getElementById('f-acumulable').checked;
+
+  return { ciudad, nombre, divisa, desayuno, desayunoIncluido, fechaInicio, fechaFin, precios, reglas, acumulable };
+}
+
+function buildFormPreview() {
+  const d = getFormData();
+  const sym = currencySymbol(d.divisa);
+  const numDates = Object.keys(d.precios).length;
+  const prices = Object.values(d.precios);
+  const minP = prices.length ? Math.min(...prices) : 0;
+  const maxP = prices.length ? Math.max(...prices) : 0;
+  const hasVar = minP !== maxP;
+
+  let html = `<div class="preview-hotel-card">
+    <div class="preview-hotel-header">
+      <div>
+        <div class="preview-hotel-name">${d.nombre || '—'}</div>
+        <div class="preview-hotel-meta">${d.ciudad || '—'} · ${d.divisa} · ${numDates} fechas · ${hasVar ? sym+minP+'–'+sym+maxP : sym+minP+'/noche'} · Desayuno: ${d.desayuno > 0 ? sym+d.desayuno+'/pax' : 'no'}</div>
+      </div>
+      <span class="preview-hotel-badge">Nuevo</span>
+    </div>`;
+
+  if (numDates === 0) {
+    html += `<div style="padding:12px 16px;color:#991b1b;font-size:13px">⚠️ No hay precios definidos. Vuelve al paso 2.</div>`;
+  } else if (hasVar) {
+    // Show grouped periods
+    const fechas = Object.keys(d.precios).sort();
+    const grupos = []; let cur = null;
+    for (const f of fechas) {
+      if (cur && cur.p === d.precios[f]) cur.hasta = f;
+      else { cur = { desde: f, hasta: f, p: d.precios[f] }; grupos.push(cur); }
+    }
+    html += `<table class="preview-price-table"><tbody>`;
+    grupos.slice(0, 8).forEach(g => {
+      html += `<tr><td>${fmtDateDisplay(g.desde)}${g.desde !== g.hasta ? ' – ' + fmtDateDisplay(g.hasta) : ''}</td><td>${sym}${g.p}/noche</td></tr>`;
+    });
+    if (grupos.length > 8) html += `<tr><td colspan="2" style="color:var(--text-muted);font-style:italic">… y ${grupos.length - 8} períodos más</td></tr>`;
+    html += `</tbody></table>`;
+  }
+
+  if (d.reglas.length > 0)
+    html += `<div class="preview-conditions">⚡ ${d.reglas.map(r => r.descripcion).join(' · ')}${d.acumulable ? ' — <strong>acumulables</strong>' : ''}</div>`;
+
+  html += `</div>`;
+
+  if (!d.ciudad) html += `<div class="alert error" style="margin-top:8px">Falta la ciudad.</div>`;
+  if (!d.nombre) html += `<div class="alert error" style="margin-top:8px">Falta el nombre del hotel.</div>`;
+  if (numDates === 0) html += `<div class="alert error" style="margin-top:8px">No hay precios definidos.</div>`;
+
+  document.getElementById('form-preview').innerHTML = html;
+}
+
+async function confirmFormImport() {
+  const d = getFormData();
+  if (!d.ciudad || !d.nombre || Object.keys(d.precios).length === 0) {
+    alert('Faltan datos obligatorios. Revisa ciudad, nombre y precios.');
+    return;
+  }
+  const btn = document.querySelector('#form-step-4 .btn-confirm');
+  btn.textContent = 'Guardando...';
+  btn.disabled = true;
+  try {
+    const payload = { ciudad: d.ciudad, nombre: d.nombre, divisa: d.divisa, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, precios: d.precios, reglas: d.reglas, acumulable: d.acumulable };
+    if (window._editingHotelId) {
+      const { error } = await sb.from('hoteles_importados').update(payload).eq('id', window._editingHotelId);
+      if (error) throw error;
+      window._editingHotelId = null;
+    } else {
+      await saveHotel(d.ciudad, d.nombre, { precios: d.precios, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, reglas: d.reglas, divisa: d.divisa, acumulable: d.acumulable });
+    }
+    closeImport();
+    await populateCities();
+    await updateImportedCount();
+  } catch(e) {
+    alert('Error al guardar: ' + e.message);
+  } finally {
+    btn.textContent = '✓ Guardar hotel';
+    btn.disabled = false;
+  }
+}
+
+// ── Manage ────────────────────────────────────────────────────────────────
+async function openManage() {
+  const imp = await loadImported();
+  let html = '';
+  const cities = Object.keys(imp).sort();
+  if (cities.length === 0) html = '<p style="font-size:13px;color:var(--text-muted)">No hay hoteles importados todavía.</p>';
+  for (const ciudad of cities) {
+    html += '<div style="margin-bottom:24px"><div class="section-title">' + ciudad + '</div>';
+    for (const hotel of Object.keys(imp[ciudad]).sort()) {
+      const h = imp[ciudad][hotel];
+      const fechas = Object.keys(h.precios || {}).sort();
+      const prices = Object.values(h.precios || {});
+      const minP = prices.length ? Math.min(...prices) : 0;
+      const maxP = prices.length ? Math.max(...prices) : 0;
+      const sym = currencySymbol(h.divisa || 'EUR');
+      const hotelId = h._id || '';
+      html += '<div style="border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px">';
+      html += '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px">';
+      html += '<div style="flex:1;margin-right:12px"><div style="font-size:13px;font-weight:600">' + hotel + '</div>';
+      html += '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">' + fechas.length + ' fechas · ' + (h.divisa||'EUR') + ' · ';
+      html += (minP===maxP ? sym+minP : sym+minP+'–'+sym+maxP) + '/noche · Desayuno: ' + (h.desayuno>0?sym+h.desayuno+'/pax':'no');
+      if (h.reglas && h.reglas.length) html += ' · ⚡ ' + h.reglas.length + ' descuento' + (h.reglas.length>1?'s':'') + (h.acumulable ? ' (acumulables)' : '');
+      html += '</div></div>';
+      if (isAdmin) {
+        html += '<div style="display:flex;gap:8px">';
+        html += '<button data-hotel-id="' + hotelId + '" onclick="editHotelById(this)" style="font-size:12px;color:var(--accent);background:none;border:1px solid var(--accent);border-radius:5px;padding:5px 10px;cursor:pointer">Editar</button>';
+        html += '<button data-id="' + hotelId + '" onclick="deleteImportedById(this)" style="font-size:12px;color:#991b1b;background:none;border:1px solid #fecaca;border-radius:5px;padding:5px 10px;cursor:pointer">Eliminar</button>';
+        html += '</div>';
+      }
+      html += '</div>';
+      if (fechas.length > 0) {
+        const grupos = []; let cur = null;
+        for (const f of fechas) {
+          if (cur && cur.p === h.precios[f]) cur.hasta = f;
+          else { cur = { desde: f, hasta: f, p: h.precios[f] }; grupos.push(cur); }
+        }
+        html += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px">';
+        grupos.slice(0,5).forEach(g => {
+          html += '<tr><td style="padding:3px 0;color:var(--text-muted)">' + fmtDateDisplay(g.desde);
+          if (g.desde !== g.hasta) html += ' – ' + fmtDateDisplay(g.hasta);
+          html += '</td><td style="text-align:right;font-weight:500">' + sym + g.p + '/noche</td></tr>';
+        });
+        if (grupos.length > 5) html += '<tr><td colspan="2" style="color:var(--text-muted);font-style:italic;padding:3px 0">… y ' + (grupos.length-5) + ' períodos más</td></tr>';
+        html += '</table>';
+      }
+      html += '</div>';
+    }
+    html += '</div>';
+  }
+  document.getElementById('manage-content').innerHTML = html;
+  document.getElementById('manageModal').classList.add('open');
+}
+
+async function editHotelById(btn) {
+  const id = parseInt(btn.getAttribute('data-hotel-id'));
+  if (!id) { alert('No se pudo identificar el hotel. Intenta recargar la página.'); return; }
+  await editHotel(id);
+}
+
+async function editHotel(id) {
+  const { data } = await sb.from('hoteles_importados').select('*').eq('id', id).single();
+  if (!data) return;
+  document.getElementById('manageModal').classList.remove('open');
+  document.getElementById('f-ciudad').value = data.ciudad;
+  document.getElementById('f-nombre').value = data.nombre;
+  document.getElementById('f-divisa').value = data.divisa || 'EUR';
+  document.getElementById('f-desayuno').value = data.desayuno || 0;
+  _desayunoIncluido = data.desayuno_incluido || false;
+  if(document.getElementById('btn-desayuno-si')) document.getElementById('btn-desayuno-si').classList.toggle('active', _desayunoIncluido);
+  if(document.getElementById('btn-desayuno-no')) document.getElementById('btn-desayuno-no').classList.toggle('active', !_desayunoIncluido);
+  const precios = data.precios || {};
+  const fechas = Object.keys(precios).sort();
+  if (fechas.length > 0) {
+    document.getElementById('f-fecha-inicio').value = fechas[0];
+    document.getElementById('f-fecha-fin').value = fechas[fechas.length-1];
+  }
+  const container = document.getElementById('price-rows');
+  container.innerHTML = '';
+  const grupos = []; let cur = null;
+  for (const f of fechas) {
+    if (cur && cur.p === precios[f]) cur.hasta = f;
+    else { cur = { desde: f, hasta: f, p: precios[f] }; grupos.push(cur); }
+  }
+  for (const g of grupos) {
+    addPriceRow();
+    const rows = container.querySelectorAll('.price-row');
+    const last = rows[rows.length-1];
+    last.querySelector('.pr-desde').value = g.desde;
+    last.querySelector('.pr-hasta').value = g.hasta;
+    last.querySelector('.pr-precio').value = g.p;
+  }
+  const dContainer = document.getElementById('discount-rows');
+  dContainer.innerHTML = '';
+  for (const r of (data.reglas || [])) {
+    // Build discount row manually to avoid timing issues
+    const discDiv = document.createElement('div');
+    discDiv.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;background:var(--bg)';
+    
+    // Extra field HTML based on type
+    let extraHtml = '';
+    const val = r.dias != null ? r.dias : (r.noches != null ? r.noches : (r.pax != null ? r.pax : (r.hasta || '')));
+    if (r.tipo === 'early_booking') {
+      extraHtml = '<div class="field"><label>Días de antelación mínimos</label><input type="number" class="dr-valor" value="' + val + '" min="1"></div>';
+    } else if (r.tipo === 'estancia_minima') {
+      extraHtml = '<div class="field"><label>Número mínimo de noches</label><input type="number" class="dr-valor" value="' + val + '" min="1"></div>';
+    } else if (r.tipo === 'min_pax') {
+      extraHtml = '<div class="field"><label>Número mínimo de personas</label><input type="number" class="dr-valor" value="' + val + '" min="1"></div>';
+    } else {
+      extraHtml = '<div class="field"><label>Fecha límite de contratación</label><input type="date" class="dr-valor" value="' + val + '"></div>';
+    }
+    
+    discDiv.innerHTML = [
+      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">',
+        '<div class="field"><label>Tipo de descuento</label>',
+          '<select class="dr-tipo" onchange="updateDiscountRow(this)">',
+            '<option value="early_booking">Early booking</option>',
+            '<option value="estancia_minima">Estancia m\u00ednima</option>',
+            '<option value="min_pax">M\u00ednimo de personas</option>',
+            '<option value="fecha_contratacion">Fecha l\u00edmite</option>',
+          '</select></div>',
+        '<div class="field"><label>Descuento (%)</label>',
+          '<input type="number" class="dr-pct" value="' + r.descuento + '" min="1" max="100">',
+        '</div>',
+      '</div>',
+      '<div class="dr-extra" style="margin-bottom:10px">' + extraHtml + '</div>',
+      '<div class="field"><label>Descripci\u00f3n</label>',
+        '<input type="text" class="dr-desc" value="' + (r.descripcion||'').replace(/"/g, '&quot;') + '">',
+      '</div>',
+      '<button onclick="this.parentElement.parentElement.remove()" style="font-size:12px;color:#991b1b;background:none;border:none;cursor:pointer;margin-top:8px">Eliminar descuento</button>'
+    ].join('');
+    
+    dContainer.appendChild(discDiv);
+    // Set selected option after appending
+    discDiv.querySelector('.dr-tipo').value = r.tipo;
+  }
+  document.getElementById('f-acumulable').checked = data.acumulable === true;
+  window._editingHotelId = id;
+  document.getElementById('importModal').classList.add('open');
+  goStep(1);
+}
+
+async function deleteImportedById(btn) {
+  const id = parseInt(btn.getAttribute('data-id'));
+  if (!id || !isAdmin) return;
+  await deleteHotelFromDB(id);
+  await populateCities();
+  await updateImportedCount();
+  openManage();
+}
+
+async function deleteImported(ciudad, hotel, id) {
+  if (!isAdmin) return;
+  await deleteHotelFromDB(id);
+  await populateCities();
+  await updateImportedCount();
+  openManage();
+}
+</script>
+</body>
+</html>
