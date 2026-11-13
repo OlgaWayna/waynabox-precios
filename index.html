@@ -585,6 +585,8 @@ function hideResult() { document.getElementById('result').style.display = 'none'
 function fmtDate(d) { return d.toISOString().split('T')[0]; }
 // Fecha de HOY según el reloj local (Madrid). toISOString() daría el día anterior entre las 00:00 y las 01:00/02:00.
 function fmtLocalDate(d) { return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0'); }
+// Día siguiente de una fecha 'AAAA-MM-DD' (en UTC, sin problemas con el cambio de hora)
+function diaSiguiente(f) { const d = new Date(f); d.setUTCDate(d.getUTCDate() + 1); return fmtDate(d); }
 function fmtDateDisplay(d) { const [y,m,day] = d.split('-'); return day+'/'+m+'/'+y; }
 function getDatesInRange(ci, co) {
   const dates = [], cur = new Date(ci), end = new Date(co);
@@ -910,6 +912,7 @@ function addPriceRow() {
 function addDiscountRow() {
   const container = document.getElementById('discount-rows');
   const div = document.createElement('div');
+  div.className = 'discount-row';
   div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;background:var(--bg)';
   div.innerHTML = `
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
@@ -937,12 +940,12 @@ function addDiscountRow() {
       <label>Descripción (visible al equipo)</label>
       <input type="text" class="dr-desc" placeholder="ej: Early booking más de 30 días: -10%">
     </div>
-    <button onclick="this.closest('div[style]').remove()" style="font-size:12px;color:#991b1b;background:none;border:none;cursor:pointer;margin-top:8px">Eliminar descuento</button>`;
+    <button onclick="this.closest('.discount-row').remove()" style="font-size:12px;color:#991b1b;background:none;border:none;cursor:pointer;margin-top:8px">Eliminar descuento</button>`;
   container.appendChild(div);
 }
 
 function updateDiscountRow(sel) {
-  const row = sel.closest('div[style]');
+  const row = sel.closest('.discount-row');
   const extra = row.querySelector('.dr-extra');
   const tipo = sel.value;
   if (tipo === 'early_booking') {
@@ -993,6 +996,7 @@ function getFormData() {
     const regla = { tipo, descuento: pct, descripcion: desc || tipo };
     if (tipo === 'early_booking') regla.dias = parseInt(valor);
     else if (tipo === 'estancia_minima') regla.noches = parseInt(valor);
+    else if (tipo === 'min_pax') regla.pax = parseInt(valor);
     else regla.hasta = valor;
     reglas.push(regla);
   }
@@ -1027,7 +1031,7 @@ function buildFormPreview() {
     const fechas = Object.keys(d.precios).sort();
     const grupos = []; let cur = null;
     for (const f of fechas) {
-      if (cur && cur.p === d.precios[f]) cur.hasta = f;
+      if (cur && cur.p === d.precios[f] && f === diaSiguiente(cur.hasta)) cur.hasta = f;
       else { cur = { desde: f, hasta: f, p: d.precios[f] }; grupos.push(cur); }
     }
     html += `<table class="preview-price-table"><tbody>`;
@@ -1112,7 +1116,7 @@ async function openManage() {
       if (fechas.length > 0) {
         const grupos = []; let cur = null;
         for (const f of fechas) {
-          if (cur && cur.p === h.precios[f]) cur.hasta = f;
+          if (cur && cur.p === h.precios[f] && f === diaSiguiente(cur.hasta)) cur.hasta = f;
           else { cur = { desde: f, hasta: f, p: h.precios[f] }; grupos.push(cur); }
         }
         html += '<table style="width:100%;border-collapse:collapse;font-size:12px;margin-top:4px">';
@@ -1159,7 +1163,7 @@ async function editHotel(id) {
   container.innerHTML = '';
   const grupos = []; let cur = null;
   for (const f of fechas) {
-    if (cur && cur.p === precios[f]) cur.hasta = f;
+    if (cur && cur.p === precios[f] && f === diaSiguiente(cur.hasta)) cur.hasta = f;
     else { cur = { desde: f, hasta: f, p: precios[f] }; grupos.push(cur); }
   }
   for (const g of grupos) {
@@ -1175,6 +1179,7 @@ async function editHotel(id) {
   for (const r of (data.reglas || [])) {
     // Build discount row manually to avoid timing issues
     const discDiv = document.createElement('div');
+    discDiv.className = 'discount-row';
     discDiv.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;background:var(--bg)';
     
     // Extra field HTML based on type
@@ -1207,7 +1212,7 @@ async function editHotel(id) {
       '<div class="field"><label>Descripci\u00f3n</label>',
         '<input type="text" class="dr-desc" value="' + (r.descripcion||'').replace(/"/g, '&quot;') + '">',
       '</div>',
-      '<button onclick="this.parentElement.parentElement.remove()" style="font-size:12px;color:#991b1b;background:none;border:none;cursor:pointer;margin-top:8px">Eliminar descuento</button>'
+      '<button onclick="this.closest(\'.discount-row\').remove()" style="font-size:12px;color:#991b1b;background:none;border:none;cursor:pointer;margin-top:8px">Eliminar descuento</button>'
     ].join('');
     
     dContainer.appendChild(discDiv);
