@@ -226,6 +226,12 @@
           </div>
         </div>
         <div class="field" style="margin-bottom:14px">
+          <label>IDs del hotel en Orbit (proveedor + id)</label>
+          <div id="id-rows"></div>
+          <button type="button" onclick="addIdRow()" style="font-size:12px;color:var(--accent);background:none;border:1px dashed var(--accent);border-radius:6px;padding:6px 12px;cursor:pointer">＋ Añadir id</button>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">El mismo id en todas las habitaciones del hotel. Si el hotel está en varios proveedores, añade uno por proveedor.</div>
+        </div>
+        <div class="field" style="margin-bottom:14px">
           <label>Nombre hotel + tipo habitación</label>
           <input type="text" id="f-nombre" placeholder="ej: CORVIN CENTER SUITES 1-BEDROOM" oninput="formChanged()">
           <div style="font-size:11px;color:var(--text-muted);margin-top:4px">En mayúsculas. Incluye el tipo de habitación (SINGLE, DOBLE, TWIN, etc.)</div>
@@ -345,6 +351,7 @@ async function loadImported() {
         desayuno_incluido: row.desayuno_incluido || false,
         reglas: row.reglas || [],
         acumulable: row.acumulable === true,
+        ids_proveedor: row.ids_proveedor || [],
         divisa: row.divisa || 'EUR',
         _id: row.id
       };
@@ -365,7 +372,8 @@ async function saveHotel(ciudad, nombre, hotelData) {
     desayuno_incluido: hotelData.desayuno_incluido || false,
     precios: hotelData.precios,
     reglas: hotelData.reglas || [],
-    acumulable: hotelData.acumulable === true
+    acumulable: hotelData.acumulable === true,
+    ids_proveedor: hotelData.ids_proveedor || []
   };
 
   const { error } = existing
@@ -458,8 +466,68 @@ function updateAdminUI() {
 }
 
 // ── Abre la app con los datos que vienen en el enlace (?ciudad=...&hotel=...) ──
+// Capacidad aproximada de una ficha según su nombre (para elegir habitación por nº de personas)
+function capacidadFicha(nombre) {
+  const n = ' ' + nombre.toUpperCase().replace(/[()\-–,]/g, ' ') + ' ';
+  if (/\s(QUAD|QUADRUPLA|CUADRUPLE|4PAX)\s/.test(n)) return 4;
+  if (/\s(TRIPLE|TRIPLA|TRP|3PAX)\s/.test(n)) return 3;
+  if (/\s(SINGLE|SGL|DUS|DUI|1PAX|INDIVIDUAL)\s/.test(n)) return 1;
+  if (/\s(DOBLE|DOUBLE|DBL|TWIN|2PAX)\s/.test(n)) return 2;
+  return null;
+}
+
+// Enlace desde Orbit: ?proveedor=WebBeds&id_proveedor=2085295&checkin=...&checkout=...&pax=2
+async function aplicarParametrosOrbit(p) {
+  const idBuscado = p.get('id_proveedor').trim();
+  const provBuscado = (p.get('proveedor') || '').trim().toLowerCase();
+  const imp = await loadImported();
+  const candidatos = [];
+  for (const ciudad in imp) for (const nombre in imp[ciudad]) {
+    const ids = imp[ciudad][nombre].ids_proveedor || [];
+    if (ids.some(x => String(x.id).trim() === idBuscado && (!provBuscado || !x.proveedor || x.proveedor.toLowerCase() === provBuscado)))
+      candidatos.push({ ciudad, nombre, h: imp[ciudad][nombre] });
+  }
+  ['checkin', 'checkout', 'pax', 'habitaciones'].forEach(k => { if (p.has(k)) document.getElementById(k).value = p.get(k); });
+  if (p.has('desayuno')) setDesayuno(p.get('desayuno') === 'si');
+
+  const aviso = (html) => {
+    document.getElementById('result').style.display = 'block';
+    document.getElementById('result-content').innerHTML = html;
+  };
+  if (candidatos.length === 0) {
+    aviso('<div class="alert warning"><strong>Sin tarifa directa cargada</strong><br>No hay ningún hotel con el id ' +
+          (provBuscado ? p.get('proveedor') + ' ' : '') + idBuscado + '. Avisa a Jorgelina para que lo revise.</div>');
+    return;
+  }
+  const ciudad = candidatos[0].ciudad;
+  document.getElementById('ciudad').value = ciudad;
+  await onCiudadChange();
+
+  // Solo fichas con precio para todas las noches de la estancia
+  const checkin = document.getElementById('checkin').value, checkout = document.getElementById('checkout').value;
+  const noches = (checkin && checkout && checkin < checkout) ? getDatesInRange(checkin, checkout) : [];
+  let lista = candidatos.filter(c => c.ciudad === ciudad);
+  const conPrecio = lista.filter(c => noches.length && noches.every(d => c.h.precios && c.h.precios[d] !== undefined));
+  if (conPrecio.length) lista = conPrecio;
+  const pax = parseInt(document.getElementById('pax').value) || 0;
+  const porPax = lista.filter(c => capacidadFicha(c.nombre) === pax);
+  const elegidas = porPax.length ? porPax : lista;
+
+  const hotelSel = document.getElementById('hotel');
+  if (elegidas.length === 1) {
+    hotelSel.value = elegidas[0].nombre;
+    await calcular();
+    return;
+  }
+  // Varias opciones: se dejan solo esas en el desplegable para que Ops elija
+  hotelSel.innerHTML = '<option value="">— Elige habitación —</option>' +
+    elegidas.map(c => '<option value="' + c.nombre.replace(/"/g, '&quot;') + '">' + c.nombre + '</option>').join('');
+  aviso('<div class="alert info"><strong>' + elegidas.length + ' tarifas para este hotel</strong><br>Elige la habitación en el desplegable "Hotel" y pulsa Calcular.</div>');
+}
+
 async function aplicarParametrosURL() {
   const p = new URLSearchParams(location.search);
+  if (p.has('id_proveedor')) return aplicarParametrosOrbit(p);
   if (!p.has('ciudad')) return;
 
   const elegir = (select, valor) => {
@@ -797,6 +865,7 @@ function openImport() {
   document.getElementById('f-desayuno').value = '0';
   document.getElementById('f-divisa').value = 'EUR';
   document.getElementById('f-acumulable').checked = false;
+  document.getElementById('id-rows').innerHTML = '';
   // Init with one price row and no discount rows
   document.getElementById('price-rows').innerHTML = '';
   document.getElementById('discount-rows').innerHTML = '';
@@ -959,6 +1028,23 @@ function updateDiscountRow(sel) {
   }
 }
 
+function addIdRow(proveedor, id) {
+  const div = document.createElement('div');
+  div.className = 'id-row';
+  div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 36px;gap:8px;margin-bottom:8px';
+  div.innerHTML = '<input type="text" class="id-prov" placeholder="Proveedor (ej: WebBeds)">' +
+                  '<input type="text" class="id-num" placeholder="Id (ej: 2085295)">' +
+                  '<button type="button" onclick="this.closest(\'.id-row\').remove()" style="width:36px;border:1px solid #fecaca;border-radius:6px;background:none;color:#991b1b;cursor:pointer">×</button>';
+  div.querySelector('.id-prov').value = proveedor || '';
+  div.querySelector('.id-num').value = id || '';
+  document.getElementById('id-rows').appendChild(div);
+}
+function leerIds() {
+  return [...document.querySelectorAll('#id-rows .id-row')]
+    .map(r => ({ proveedor: r.querySelector('.id-prov').value.trim(), id: r.querySelector('.id-num').value.trim() }))
+    .filter(x => x.id);
+}
+
 function getFormData() {
   const ciudad = document.getElementById('f-ciudad').value.trim();
   const nombre = document.getElementById('f-nombre').value.trim();
@@ -1003,7 +1089,9 @@ function getFormData() {
 
   const acumulable = document.getElementById('f-acumulable').checked;
 
-  return { ciudad, nombre, divisa, desayuno, desayunoIncluido, fechaInicio, fechaFin, precios, reglas, acumulable };
+  const idsProveedor = leerIds();
+
+  return { ciudad, nombre, divisa, desayuno, desayunoIncluido, fechaInicio, fechaFin, precios, reglas, acumulable, idsProveedor };
 }
 
 function buildFormPreview() {
@@ -1019,7 +1107,7 @@ function buildFormPreview() {
     <div class="preview-hotel-header">
       <div>
         <div class="preview-hotel-name">${d.nombre || '—'}</div>
-        <div class="preview-hotel-meta">${d.ciudad || '—'} · ${d.divisa} · ${numDates} fechas · ${hasVar ? sym+minP+'–'+sym+maxP : sym+minP+'/noche'} · Desayuno: ${d.desayuno > 0 ? sym+d.desayuno+'/pax' : 'no'}</div>
+        <div class="preview-hotel-meta">${d.ciudad || '—'} · ${d.divisa} · ${numDates} fechas · ${hasVar ? sym+minP+'–'+sym+maxP : sym+minP+'/noche'} · Desayuno: ${d.desayuno > 0 ? sym+d.desayuno+'/pax' : 'no'}${d.idsProveedor.length ? ' · Ids: ' + d.idsProveedor.map(x => (x.proveedor ? x.proveedor + ' ' : '') + x.id).join(', ') : ' · ⚠️ sin id de Orbit'}</div>
       </div>
       <span class="preview-hotel-badge">Nuevo</span>
     </div>`;
@@ -1064,13 +1152,13 @@ async function confirmFormImport() {
   btn.textContent = 'Guardando...';
   btn.disabled = true;
   try {
-    const payload = { ciudad: d.ciudad, nombre: d.nombre, divisa: d.divisa, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, precios: d.precios, reglas: d.reglas, acumulable: d.acumulable };
+    const payload = { ciudad: d.ciudad, nombre: d.nombre, divisa: d.divisa, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, precios: d.precios, reglas: d.reglas, acumulable: d.acumulable, ids_proveedor: d.idsProveedor };
     if (window._editingHotelId) {
       const { error } = await sb.from('hoteles_importados').update(payload).eq('id', window._editingHotelId);
       if (error) throw error;
       window._editingHotelId = null;
     } else {
-      await saveHotel(d.ciudad, d.nombre, { precios: d.precios, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, reglas: d.reglas, divisa: d.divisa, acumulable: d.acumulable });
+      await saveHotel(d.ciudad, d.nombre, { precios: d.precios, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, reglas: d.reglas, divisa: d.divisa, acumulable: d.acumulable, ids_proveedor: d.idsProveedor });
     }
     closeImport();
     await populateCities();
@@ -1104,6 +1192,7 @@ async function openManage() {
       html += '<div style="flex:1;margin-right:12px"><div style="font-size:13px;font-weight:600">' + hotel + '</div>';
       html += '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">' + fechas.length + ' fechas · ' + (h.divisa||'EUR') + ' · ';
       html += (minP===maxP ? sym+minP : sym+minP+'–'+sym+maxP) + '/noche · Desayuno: ' + (h.desayuno>0?sym+h.desayuno+'/pax':'no');
+      if (h.ids_proveedor && h.ids_proveedor.length) html += ' · 🔗 ' + h.ids_proveedor.map(x => (x.proveedor ? x.proveedor + ' ' : '') + x.id).join(', ');
       if (h.reglas && h.reglas.length) html += ' · ⚡ ' + h.reglas.length + ' descuento' + (h.reglas.length>1?'s':'') + (h.acumulable ? ' (acumulables)' : '');
       html += '</div></div>';
       if (isAdmin) {
@@ -1220,6 +1309,8 @@ async function editHotel(id) {
     discDiv.querySelector('.dr-tipo').value = r.tipo;
   }
   document.getElementById('f-acumulable').checked = data.acumulable === true;
+  document.getElementById('id-rows').innerHTML = '';
+  (data.ids_proveedor || []).forEach(x => addIdRow(x.proveedor, x.id));
   window._editingHotelId = id;
   document.getElementById('importModal').classList.add('open');
   goStep(1);
