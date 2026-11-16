@@ -34,7 +34,7 @@
   .field-grid.three { grid-template-columns: 1fr 1fr 1fr; }
   .field { display: flex; flex-direction: column; gap: 6px; }
   label { font-size: 12px; font-weight: 500; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.4px; }
-  select, input[type="date"], input[type="number"], input[type="password"] {
+  select, input[type="date"], input[type="number"], input[type="password"], input[type="text"] {
     font-family: 'Inter', sans-serif; font-size: 14px; color: var(--text);
     background: var(--bg); border: 1px solid var(--border); border-radius: 6px;
     padding: 10px 12px; width: 100%; outline: none; transition: border-color 0.15s;
@@ -123,7 +123,7 @@
   .manage-imported { font-size: 12px; color: var(--text-muted); cursor: pointer; text-decoration: underline; }
   .manage-imported:hover { color: var(--accent); }
   .price-row input, .dr-extra input { font-size: 13px; }
-  #discount-rows .field label { font-size: 11px; }
+  #promo-rows .field label { font-size: 11px; }
   @media (max-width: 600px) {
     .field-grid, .field-grid.three { grid-template-columns: 1fr; }
     .result-hotel-name { max-width: 100%; }
@@ -258,6 +258,13 @@
             <button class="toggle-btn" id="btn-desayuno-si" onclick="setDesayunoIncluido(true)">Sí (incluido en precio)</button>
           </div>
         </div>
+        <div class="field" style="margin-bottom:14px">
+          <label>¿Qué noches son fin de semana para este hotel?</label>
+          <div id="f-finde" style="display:flex;gap:10px;flex-wrap:wrap;font-size:13px">
+            <label><input type="checkbox" value="1"> Lun</label><label><input type="checkbox" value="2"> Mar</label><label><input type="checkbox" value="3"> Mié</label><label><input type="checkbox" value="4"> Jue</label><label><input type="checkbox" value="5" checked> Vie</label><label><input type="checkbox" value="6" checked> Sáb</label><label><input type="checkbox" value="0"> Dom</label>
+          </div>
+          <div style="font-size:11px;color:var(--text-muted);margin-top:4px">Por noche: la noche del viernes es entrar el viernes y salir el sábado. Solo importa si hay precio de fin de semana o promociones de fin de semana.</div>
+        </div>
         <div class="modal-actions">
           <button class="btn-cancel" onclick="closeImport()">Cancelar</button>
           <button class="btn-confirm" onclick="goStep(2)">Siguiente → Tarifas</button>
@@ -285,17 +292,19 @@
 
       <!-- Step 3: Discounts -->
       <div id="form-step-3" style="display:none">
-        <div class="section-title">Descuentos especiales</div>
-        <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Opcional. Añade solo los descuentos que apliquen.</div>
+        <div class="section-title">Promociones y descuentos</div>
+        <div style="font-size:13px;color:var(--text-muted);margin-bottom:16px">Opcional. Una tarjeta por promoción, con el nombre que use el hotel. Si una promoción no tiene condiciones, se aplica siempre.</div>
 
-        <label style="display:flex;gap:10px;align-items:flex-start;border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:14px;cursor:pointer;font-size:13px">
-          <input type="checkbox" id="f-acumulable" style="margin-top:2px">
-          <span><strong>Descuentos acumulables</strong><br><span style="color:var(--text-muted);font-size:12px">Márcalo solo si el contrato dice que los descuentos se suman. Se aplican uno detrás de otro (ej. -10% y luego -5% sobre el resultado). Desmarcado: solo se aplica el primero que cumpla.</span></span>
-        </label>
+        <div id="promo-rows"></div>
+        <button onclick="addPromo()" style="font-size:13px;color:var(--accent);background:none;border:1px dashed var(--accent);border-radius:6px;padding:8px 16px;cursor:pointer;width:100%;margin-bottom:16px">＋ Añadir promoción</button>
 
-        <div id="discount-rows"></div>
-
-        <button onclick="addDiscountRow()" style="font-size:13px;color:var(--accent);background:none;border:1px dashed var(--accent);border-radius:6px;padding:8px 16px;cursor:pointer;width:100%;margin-bottom:16px">＋ Añadir descuento</button>
+        <div style="border:1px solid var(--border);border-radius:8px;padding:12px 14px;margin-bottom:16px;background:var(--bg)">
+          <div style="font-size:13px;font-weight:600;margin-bottom:8px">Persona adicional (opcional)</div>
+          <div class="field-grid">
+            <div class="field"><label>A partir de (personas)</label><input type="number" id="f-tp-pax" min="3" placeholder="3"></div>
+            <div class="field"><label>Descuento sobre el precio por persona (%)</label><input type="number" id="f-tp-pct" min="0" max="100" placeholder="25"></div>
+          </div>
+        </div>
 
         <div class="modal-actions">
           <button class="btn-cancel" onclick="goStep(2)">← Anterior</button>
@@ -352,6 +361,9 @@ async function loadImported() {
         reglas: row.reglas || [],
         acumulable: row.acumulable === true,
         ids_proveedor: row.ids_proveedor || [],
+        promociones: row.promociones || [],
+        fin_semana: row.fin_semana || null,
+        periodos: row.periodos || null,
         divisa: row.divisa || 'EUR',
         _id: row.id
       };
@@ -373,7 +385,10 @@ async function saveHotel(ciudad, nombre, hotelData) {
     precios: hotelData.precios,
     reglas: hotelData.reglas || [],
     acumulable: hotelData.acumulable === true,
-    ids_proveedor: hotelData.ids_proveedor || []
+    ids_proveedor: hotelData.ids_proveedor || [],
+    promociones: hotelData.promociones || [],
+    fin_semana: hotelData.fin_semana || FIN_SEMANA_DEFECTO,
+    periodos: hotelData.periodos || null
   };
 
   const { error } = existing
@@ -662,67 +677,86 @@ function getDatesInRange(ci, co) {
   return dates;
 }
 
-// ── Special rules ─────────────────────────────────────────────────────────
-async function applySpecialRules(hotel, checkin, today, numNights, pax) {
-  const name = hotel.toUpperCase();
-  const daysAhead = Math.floor((new Date(checkin) - new Date(today)) / 86400000);
+// ── Promociones (fase 1) ─────────────────────────────────────────────────
+// Cada promoción: { nombre, valor, unidad: '%'|'€', base: 'noche'|'estancia', combinable,
+//   cond: { antelacion_min, noches_min, reserva_desde, reserva_hasta, estancias:[{desde,hasta}], tipo_noche: ''|'entre_semana'|'fin_semana' } }
+// Reglas del contrato acordadas (16/11): los rangos de estancia se miran NOCHE A NOCHE (solo
+// las noches dentro del rango llevan descuento); los descuentos en € son por noche o por
+// estancia según la promoción; las combinables se encadenan; las no combinables van solas;
+// se aplica la opción más barata.
+const FIN_SEMANA_DEFECTO = [5, 6];   // noches de viernes y sábado (0 = domingo … 6 = sábado)
+const NOMBRES_NOCHE = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'];
 
-  if (name.includes('RAFFAELLO')) {
-    if (daysAhead > 30) return { factor: 0.90, label: 'Early booking >30 días', pct: '10%' };
-    if (daysAhead > 14) return { factor: 0.95, label: 'Early booking >14 días', pct: '5%' };
-  }
-  if (name.includes('MARMARA BUDAPEST 2026')) {
-    if (daysAhead > 45) {
-      if (numNights === 1) return { factor: 0.95, label: 'Mármara >45 días, 1 noche', pct: '5%' };
-      if (numNights === 2) return { factor: 0.90, label: 'Mármara >45 días, 2 noches', pct: '10%' };
-      if (numNights >= 3) return { factor: 0.85, label: 'Mármara >45 días, 3+ noches', pct: '15%' };
-    }
-  }
-  // Contrato Clip: "Bookings made 25 days prior arrival" → desde 25 días incluido, sin mínimo de noches.
-  // Regla fija: cubre "Clip Hotel" y "Clip Hotel Triple" (este último sin reglas en su ficha).
-  if (name.includes('CLIP') && daysAhead >= 25)
-    return { factor: 0.92, label: 'Early booking 25 días o más: -8%', pct: '8%' };
-  if (name.includes('RINA') && new Date(today) <= new Date('2026-03-31'))
-    return { factor: 0.90, label: 'Rina — contratación antes 31/03/2026', pct: '10%' };
-  if (name.includes('FOUR POINTS') && daysAhead > 30)
-    return { factor: 0.90, label: 'Early booking >30 días', pct: '10%' };
-  if (name.includes('MONSIGNY')) {
-    const bDate = new Date(today), cDate = new Date(checkin);
-    const inBooking = bDate >= new Date('2025-11-21') && bDate <= new Date('2025-12-03');
-    const inP1 = cDate >= new Date('2025-11-21') && cDate <= new Date('2026-03-15') && numNights >= 2;
-    const inP2 = cDate >= new Date('2026-04-12') && cDate <= new Date('2026-04-17') && numNights >= 3;
-    if (inBooking && (inP1 || inP2)) return { factor: 0.80, label: 'Promo Black Friday Monsigny', pct: '20%' };
-  }
+function diaSemana(f) { return new Date(f).getUTCDay(); }
+function diasEntre(a, b) { return Math.round((new Date(b) - new Date(a)) / 86400000); }
 
-  const imported = await loadImported();
-  const hotelCleanLower = hotel.replace(' ★','').trim().toLowerCase();
-  for (const ciudad in imported) {
-    const hotelKey = Object.keys(imported[ciudad]).find(k => k.toLowerCase() === hotelCleanLower);
-    const h = hotelKey && imported[ciudad][hotelKey];
-    if (h?.reglas) {
-      let factor = 1; const labels = [];
-      for (const r of h.reglas) {
-        if (r.tipo === 'min_pax') {            // se mantiene como estaba
-          const minPax = r.pax || parseInt(r.hasta) || 0; // fallback: hasta field used as pax
-          if (minPax && pax >= minPax)
-            return { tipo: 'min_pax', pax: minPax, descuento: r.descuento, label: r.descripcion, pct: r.descuento + '%' };
-          continue;
-        }
-        const aplica =
-          (r.tipo === 'early_booking'      && r.dias   && daysAhead >= r.dias) ||   // "21 días" = desde 21 incluido
-          (r.tipo === 'fecha_contratacion' && r.hasta  && new Date(today) <= new Date(r.hasta)) ||
-          (r.tipo === 'estancia_minima'    && r.noches && numNights >= r.noches);
-        if (!aplica) continue;
-        if (!h.acumulable)                       // NO acumulable: como antes, el primero que cumple
-          return { factor: 1 - r.descuento / 100, label: r.descripcion, pct: r.descuento + '%' };
-        factor *= 1 - r.descuento / 100;         // acumulable: se encadenan
-        labels.push(r.descripcion);
-      }
-      if (factor < 1)
-        return { factor, label: labels.join(' + '), pct: String(Math.round((1 - factor) * 1000) / 10).replace('.', ',') + '%' };
-    }
+// Reglas del formato antiguo → promociones (por si alguna ficha no se ha migrado aún)
+function reglasAPromos(reglas, acumulable) {
+  return (reglas || []).filter(r => r.tipo !== 'min_pax').map(r => {
+    const cond = {};
+    if (r.tipo === 'early_booking') cond.antelacion_min = r.dias;
+    if (r.tipo === 'estancia_minima') cond.noches_min = r.noches;
+    if (r.tipo === 'fecha_contratacion') cond.reserva_hasta = r.hasta;
+    return { nombre: r.descripcion || r.tipo, valor: r.descuento, unidad: '%', base: 'noche', combinable: !!acumulable, cond };
+  });
+}
+function promosDe(h) {
+  return (h && h.promociones && h.promociones.length) ? h.promociones : reglasAPromos(h && h.reglas, h && h.acumulable);
+}
+function tercerPaxDe(h) {
+  const r = ((h && h.reglas) || []).find(r => r.tipo === 'min_pax');
+  if (!r) return null;
+  const pax = r.pax || parseInt(r.hasta) || 0;
+  return pax ? { pax, descuento: r.descuento, label: r.descripcion || ('Descuento ' + pax + 'ª persona') } : null;
+}
+
+function cumpleReserva(p, checkin, today, numNoches) {
+  const c = p.cond || {};
+  if (c.antelacion_min && diasEntre(today, checkin) < c.antelacion_min) return false;
+  if (c.noches_min && numNoches < c.noches_min) return false;
+  if (c.reserva_desde && today < c.reserva_desde) return false;
+  if (c.reserva_hasta && today > c.reserva_hasta) return false;
+  return true;
+}
+function cumpleNoche(p, f, finSemana) {
+  const c = p.cond || {};
+  if (c.estancias && c.estancias.length &&
+      !c.estancias.some(e => (!e.desde || f >= e.desde) && (!e.hasta || f <= e.hasta))) return false;
+  const esFinde = finSemana.includes(diaSemana(f));
+  if (c.tipo_noche === 'entre_semana' && esFinde) return false;
+  if (c.tipo_noche === 'fin_semana' && !esFinde) return false;
+  return true;
+}
+
+// Aplica un conjunto de promociones encadenadas. Devuelve el total por habitación.
+function aplicarConjunto(conjunto, noches, finSemana) {
+  let total = 0; const usadas = new Set();
+  for (const n of noches) {
+    let p = n.precio;
+    for (const pr of conjunto) if (pr.unidad !== '€' && cumpleNoche(pr, n.fecha, finSemana)) { p *= 1 - pr.valor / 100; usadas.add(pr); }
+    for (const pr of conjunto) if (pr.unidad === '€' && (pr.base || 'noche') === 'noche' && cumpleNoche(pr, n.fecha, finSemana)) { p -= pr.valor; usadas.add(pr); }
+    total += Math.max(0, p);
   }
-  return null;
+  for (const pr of conjunto)
+    if (pr.unidad === '€' && pr.base === 'estancia' && noches.some(n => cumpleNoche(pr, n.fecha, finSemana))) { total = Math.max(0, total - pr.valor); usadas.add(pr); }
+  return { total, promos: conjunto.filter(pr => usadas.has(pr)) };
+}
+
+// Todas las opciones de descuento para una estancia, de más barata a más cara
+function opcionesPromo(h, noches, checkin, today) {
+  const finSemana = (h.fin_semana && h.fin_semana.length) ? h.fin_semana : FIN_SEMANA_DEFECTO;
+  const base = noches.reduce((s, n) => s + n.precio, 0);
+  const validas = promosDe(h).filter(p => p.valor > 0 && cumpleReserva(p, checkin, today, noches.length));
+  const comb = validas.filter(p => p.combinable), solas = validas.filter(p => !p.combinable);
+  const opciones = [];
+  if (comb.length) opciones.push(aplicarConjunto(comb, noches, finSemana));
+  for (const p of solas) opciones.push(aplicarConjunto([p], noches, finSemana));
+  const utiles = opciones.filter(o => o.promos.length && o.total < base - 0.0001);
+  utiles.sort((a, b) => a.total - b.total);
+  return { base, opciones: utiles };
+}
+function etiquetaPct(base, total) {
+  return String(Math.round((1 - total / base) * 1000) / 10).replace('.', ',') + '%';
 }
 
 // ── Calculator ────────────────────────────────────────────────────────────
@@ -759,19 +793,20 @@ async function calcular() {
 
   const habTotal      = found.reduce((s,d) => s + precios[d], 0) * habs;
   const desayunoTotal = (desayunoSi && desayunoPorPax > 0) ? desayunoPorPax * pax * found.length : 0;
-  const rule          = await applySpecialRules(hotelClean, checkin, today, found.length, pax);
-  let habFinal, discountAmt;
-  if (rule && rule.tipo === 'min_pax') {
-    // 3rd person discount: extra person pays (price_per_person * (1 - discount%))
-    // price_per_person = habTotal / found.length / 2  (base double occupancy)
-    const pricePerPersonPerNight = (habTotal / found.length) / 2;
-    const extraPersonTotal = pricePerPersonPerNight * (1 - rule.descuento/100) * found.length;
-    habFinal = habTotal + extraPersonTotal;
-    discountAmt = -(extraPersonTotal); // negative = added cost shown as "extra"
-  } else {
-    habFinal = rule ? habTotal * rule.factor : habTotal;
-    discountAmt = habTotal - habFinal;
-  }
+
+  // Promociones (por habitación, noche a noche) y suplemento de 3ª persona
+  const nochesHab = found.map(d => ({ fecha: d, precio: precios[d] }));
+  const { opciones } = opcionesPromo(hotelData, nochesHab, checkin, today);
+  const mejor = opciones[0] || null;
+  const habConPromo = mejor ? mejor.total * habs : habTotal;
+  const tp = tercerPaxDe(hotelData);
+  const extraPax = (tp && pax >= tp.pax) ? (habConPromo / found.length / 2) * (1 - tp.descuento / 100) * found.length : 0;
+  const habFinal = habConPromo + extraPax;
+  const discountAmt = habTotal - habConPromo;
+  const hasDiscount = !!mejor;
+  const isExtraPax = extraPax > 0;
+  const rule = mejor ? { pct: etiquetaPct(habTotal, habConPromo), label: mejor.promos.map(p => p.nombre).join(' + ') } : null;
+
   const finalTotal    = habFinal + desayunoTotal;
   const finalEur      = isNonEur && rate ? finalTotal * rate : finalTotal;
 
@@ -780,28 +815,26 @@ async function calcular() {
   const hasVar    = [...new Set(allPrices)].length > 1;
   const groups = []; let cur = null;
   for (const b of breakdown) {
-    if (cur && cur.precio === b.precio) cur.dates.push(b.date);
+    if (cur && cur.precio === b.precio && b.date === diaSiguiente(cur.dates[cur.dates.length-1])) cur.dates.push(b.date);
     else { cur = { precio: b.precio, dates: [b.date] }; groups.push(cur); }
   }
 
-  const hasDiscount = rule !== null;
-  const isExtraPax = rule && rule.tipo === 'min_pax';
   let html = '';
-  if (hasDiscount && !isExtraPax) html += '<div class="discount-banner"><span class="badge">-' + rule.pct + '</span><span class="desc">' + rule.label + '</span></div>';
-  if (isExtraPax) html += '<div class="discount-banner"><span class="badge" style="background:var(--warning)">3ª pax</span><span class="desc">' + rule.label + ' — tarifa reducida</span></div>';
+  if (hasDiscount) html += '<div class="discount-banner"><span class="badge">-' + rule.pct + '</span><span class="desc">' + rule.label + '</span></div>';
+  if (isExtraPax) html += '<div class="discount-banner"><span class="badge" style="background:var(--warning)">' + tp.pax + 'ª pax</span><span class="desc">' + tp.label + ' — tarifa reducida</span></div>';
 
   // Header with dual currency for non-EUR
   const totalDisplay = isNonEur && rate
     ? fmt(finalTotal, currencySymbol(divisa))
     : fmtEur(finalTotal);
   const origDisplay = isNonEur && rate
-    ? fmt(habTotal + desayunoTotal, currencySymbol(divisa))
-    : fmtEur(habTotal + desayunoTotal);
+    ? fmt(habTotal + extraPax + desayunoTotal, currencySymbol(divisa))
+    : fmtEur(habTotal + extraPax + desayunoTotal);
 
   html += '<div class="result-header"><div><div class="result-hotel-name">' + hotel + '</div><div class="result-city">' + ciudad + '</div></div>';
   html += '<div class="result-total">';
-  if (hasDiscount && !isExtraPax) html += '<div class="amount-original">' + origDisplay + '</div>';
-  html += '<div class="amount' + (hasDiscount && !isExtraPax ? ' has-discount' : '') + '">' + totalDisplay + '</div>';
+  if (hasDiscount) html += '<div class="amount-original">' + origDisplay + '</div>';
+  html += '<div class="amount' + (hasDiscount ? ' has-discount' : '') + '">' + totalDisplay + '</div>';
   if (isNonEur && rate) html += '<div class="amount-eur">' + fmtEur(finalEur) + '</div>';
   html += '<div class="label">Total ' + found.length + ' noche' + (found.length>1?'s':'') + ' · ' + pax + ' pax</div>';
   html += '</div></div>';
@@ -815,8 +848,8 @@ async function calcular() {
     html += '<div class="summary-pill"><div class="pill-label">Habitación</div><div class="pill-value">' + fmtDual(habFinal, divisa, rate) + '</div></div>';
     html += '<div class="summary-pill"><div class="pill-label">Desayuno (' + pax + ' pax)</div><div class="pill-value">' + fmtDual(desayunoTotal, divisa, rate) + '</div></div>';
   }
-  if (hasDiscount && !isExtraPax) html += '<div class="summary-pill highlight"><div class="pill-label">Ahorro</div><div class="pill-value">-' + fmtDual(discountAmt, divisa, rate) + '</div></div>';
-  if (isExtraPax) html += '<div class="summary-pill" style="border-color:#fde68a;background:var(--warning-light)"><div class="pill-label" style="color:var(--warning)">3ª persona</div><div class="pill-value" style="color:var(--warning)">' + fmtDual(-discountAmt, divisa, rate) + '</div></div>';
+  if (hasDiscount) html += '<div class="summary-pill highlight"><div class="pill-label">Ahorro</div><div class="pill-value">-' + fmtDual(discountAmt, divisa, rate) + '</div></div>';
+  if (isExtraPax) html += '<div class="summary-pill" style="border-color:#fde68a;background:var(--warning-light)"><div class="pill-label" style="color:var(--warning)">3ª persona</div><div class="pill-value" style="color:var(--warning)">' + fmtDual(extraPax, divisa, rate) + '</div></div>';
   html += '</div>';
 
   // Breakdown table
@@ -829,11 +862,18 @@ async function calcular() {
   }
   if (desayunoSi && desayunoPorPax > 0)
     html += '<tr><td colspan="2">Desayuno — ' + fmtDual(desayunoPorPax, divisa, rate) + ' × ' + pax + ' pax × ' + found.length + ' noches</td><td></td><td><strong>' + fmtDual(desayunoTotal, divisa, rate) + '</strong></td></tr>';
-  if (hasDiscount && !isExtraPax)
-    html += '<tr><td colspan="3" style="color:var(--success);font-weight:500">Descuento habitación (' + rule.pct + ')</td><td style="color:var(--success);font-weight:600">-' + fmtDual(discountAmt, divisa, rate) + '</td></tr>';
+  if (hasDiscount)
+    html += '<tr><td colspan="3" style="color:var(--success);font-weight:500">Descuento habitación (' + rule.pct + ': ' + rule.label + ')</td><td style="color:var(--success);font-weight:600">-' + fmtDual(discountAmt, divisa, rate) + '</td></tr>';
   if (isExtraPax)
-    html += '<tr><td colspan="3" style="color:var(--warning);font-weight:500">3ª persona (' + rule.pct + '% dto. s/tarifa por persona)</td><td style="color:var(--warning);font-weight:600">+' + fmtDual(-discountAmt, divisa, rate) + '</td></tr>';
+    html += '<tr><td colspan="3" style="color:var(--warning);font-weight:500">' + tp.pax + 'ª persona (' + tp.descuento + '% dto. s/tarifa por persona)</td><td style="color:var(--warning);font-weight:600">+' + fmtDual(extraPax, divisa, rate) + '</td></tr>';
   html += '</tbody></table>';
+
+  if (opciones.length > 1) {
+    html += '<div class="alert info" style="margin-top:14px"><strong>Otras promociones posibles</strong> (se aplica la más barata):<table class="no-rate-table"><tbody>';
+    for (const o of opciones.slice(1))
+      html += '<tr><td>' + o.promos.map(p => p.nombre).join(' + ') + '</td><td>' + fmtDual(o.total * habs, divisa, rate) + ' (−' + etiquetaPct(habTotal, o.total * habs) + ')</td></tr>';
+    html += '</tbody></table></div>';
+  }
 
   if (isNonEur && rate)
     html += '<div class="rate-note">Tipo de cambio en tiempo real: 1 ' + divisa + ' = ' + rate.toFixed(4) + ' EUR</div>';
@@ -864,11 +904,13 @@ function openImport() {
   document.getElementById('f-nombre').value = '';
   document.getElementById('f-desayuno').value = '0';
   document.getElementById('f-divisa').value = 'EUR';
-  document.getElementById('f-acumulable').checked = false;
   document.getElementById('id-rows').innerHTML = '';
+  document.getElementById('promo-rows').innerHTML = '';
+  document.getElementById('f-tp-pax').value = '';
+  document.getElementById('f-tp-pct').value = '';
+  ponerFinde(null);
   // Init with one price row and no discount rows
   document.getElementById('price-rows').innerHTML = '';
-  document.getElementById('discount-rows').innerHTML = '';
   addPriceRow();
 }
 
@@ -876,47 +918,6 @@ function closeImport() {
   document.getElementById('importModal').classList.remove('open');
 }
 
-
-// ── Pre-fill rules for hotels with hardcoded discounts ───────────────────
-function getHardcodedRules(nombre) {
-  const name = nombre.toUpperCase();
-  if (name.includes('RAFFAELLO')) return [
-    { tipo: 'early_booking', dias: 30, descuento: 10, descripcion: 'Early booking >30 días: -10%' },
-    { tipo: 'early_booking', dias: 14, descuento: 5, descripcion: 'Early booking >14 días: -5%' }
-  ];
-  if (name.includes('MARMARA BUDAPEST')) return [
-    { tipo: 'estancia_minima', noches: 1, descuento: 5, descripcion: 'Mármara >45 días vista, 1 noche: -5%' },
-    { tipo: 'estancia_minima', noches: 2, descuento: 10, descripcion: 'Mármara >45 días vista, 2 noches: -10%' },
-    { tipo: 'estancia_minima', noches: 3, descuento: 15, descripcion: 'Mármara >45 días vista, 3+ noches: -15%' }
-  ];
-  if (name.includes('CLIP')) return [
-    { tipo: 'early_booking', dias: 25, descuento: 8, descripcion: 'Early booking 25 días o más: -8%' }
-  ];
-  if (name.includes('FOUR POINTS')) return [
-    { tipo: 'early_booking', dias: 30, descuento: 10, descripcion: 'Early booking >30 días: -10%' }
-  ];
-  return [];
-}
-
-function prefillRulesIfNeeded() {
-  const nombre = document.getElementById('f-nombre').value.trim();
-  const rules = getHardcodedRules(nombre);
-  if (rules.length === 0) return;
-  const dContainer = document.getElementById('discount-rows');
-  if (dContainer.children.length > 0) return; // don't overwrite if already has rules
-  for (const r of rules) {
-    addDiscountRow();
-    const rows = dContainer.querySelectorAll('#discount-rows > div');
-    const last = rows[rows.length - 1];
-    const tipoSel = last.querySelector('.dr-tipo');
-    tipoSel.value = r.tipo;
-    updateDiscountRow(tipoSel);
-    last.querySelector('.dr-pct').value = r.descuento;
-    last.querySelector('.dr-desc').value = r.descripcion;
-    const valEl = last.querySelector('.dr-valor');
-    if (valEl) valEl.value = r.dias || r.noches || '';
-  }
-}
 
 function goStep(n) {
   for (let i = 1; i <= 4; i++)
@@ -926,7 +927,6 @@ function goStep(n) {
   document.getElementById('import-step-indicator').textContent = titles[n];
 
   if (n === 2 && document.getElementById('price-rows').children.length === 0) addPriceRow();
-  if (n === 3) prefillRulesIfNeeded();
   if (n === 4) buildFormPreview();
 }
 
@@ -944,7 +944,7 @@ function addPriceRow() {
   const idx = container.children.length;
   const div = document.createElement('div');
   div.className = 'price-row';
-  div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 80px 36px;gap:8px;margin-bottom:10px;align-items:end';
+  div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 80px 80px 36px;gap:8px;margin-bottom:10px;align-items:end';
   div.innerHTML = `
     <div class="field">
       ${idx === 0 ? '<label>Desde</label>' : ''}
@@ -957,6 +957,10 @@ function addPriceRow() {
     <div class="field">
       ${idx === 0 ? '<label>Precio/noche</label>' : ''}
       <input type="number" class="pr-precio" placeholder="0.00" min="0" step="0.01">
+    </div>
+    <div class="field">
+      ${idx === 0 ? '<label>Fin de semana</label>' : ''}
+      <input type="number" class="pr-precio-fs" placeholder="igual" min="0" step="0.01" title="Precio de las noches de fin de semana. Vacío = mismo precio.">
     </div>
     <div style="${idx === 0 ? 'padding-top:22px' : ''}">
       <button onclick="this.closest('.price-row').remove()" style="width:36px;height:38px;border:1px solid #fecaca;border-radius:6px;background:none;color:#991b1b;cursor:pointer;font-size:16px">×</button>
@@ -978,55 +982,83 @@ function addPriceRow() {
   }
 }
 
-function addDiscountRow() {
-  const container = document.getElementById('discount-rows');
+// ── Tarjetas de promoción ─────────────────────────────────────────────────
+function addPromo(p) {
+  p = p || { nombre: '', valor: '', unidad: '%', base: 'noche', combinable: false, cond: {} };
+  const c = p.cond || {};
   const div = document.createElement('div');
-  div.className = 'discount-row';
+  div.className = 'promo-row';
   div.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;background:var(--bg)';
   div.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
-      <div class="field">
-        <label>Tipo de descuento</label>
-        <select class="dr-tipo" onchange="updateDiscountRow(this)">
-          <option value="early_booking">Early booking (días de antelación)</option>
-          <option value="estancia_minima">Estancia mínima (noches)</option>
-          <option value="min_pax">Mínimo de personas (pax)</option>
-          <option value="fecha_contratacion">Fecha límite de contratación</option>
-        </select>
-      </div>
-      <div class="field">
-        <label>Descuento (%)</label>
-        <input type="number" class="dr-pct" placeholder="10" min="1" max="100" step="1">
-      </div>
+    <div class="field" style="margin-bottom:10px"><label>Nombre de la promoción</label>
+      <input type="text" class="pm-nombre" placeholder="ej: Early Booking 20"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin-bottom:10px">
+      <div class="field"><label>Importe</label><input type="number" class="pm-valor" min="0" step="0.01" placeholder="10"></div>
+      <div class="field"><label>Tipo</label><select class="pm-unidad" onchange="this.closest('.promo-row').querySelector('.pm-base-wrap').style.display = this.value === '€' ? 'block' : 'none'"><option value="%">%</option><option value="€">€ (importe fijo)</option></select></div>
+      <div class="field pm-base-wrap"><label>En €, se descuenta</label><select class="pm-base"><option value="noche">por noche</option><option value="estancia">por estancia</option></select></div>
     </div>
-    <div class="dr-extra" style="margin-bottom:10px">
-      <div class="field">
-        <label>Días de antelación mínimos</label>
-        <input type="number" class="dr-valor" placeholder="30" min="1">
+    <label style="display:flex;gap:8px;align-items:center;font-size:13px;margin-bottom:10px"><input type="checkbox" class="pm-comb"> Se suma con otras promociones</label>
+    <details class="pm-cond" style="font-size:13px">
+      <summary style="cursor:pointer;color:var(--accent)">Condiciones (opcional)</summary>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px">
+        <div class="field"><label>Reservando con al menos (días)</label><input type="number" class="pm-antel" min="0" placeholder="21"></div>
+        <div class="field"><label>Mínimo de noches</label><input type="number" class="pm-noches" min="0" placeholder="2"></div>
+        <div class="field"><label>Reservas hechas desde</label><input type="date" class="pm-res-desde"></div>
+        <div class="field"><label>Reservas hechas hasta</label><input type="date" class="pm-res-hasta"></div>
+        <div class="field" style="grid-column:1 / span 2"><label>Qué noches</label><select class="pm-tipo-noche"><option value="">Todas</option><option value="entre_semana">Solo entre semana</option><option value="fin_semana">Solo fin de semana</option></select></div>
       </div>
-    </div>
-    <div class="field">
-      <label>Descripción (visible al equipo)</label>
-      <input type="text" class="dr-desc" placeholder="ej: Early booking más de 30 días: -10%">
-    </div>
-    <button onclick="this.closest('.discount-row').remove()" style="font-size:12px;color:#991b1b;background:none;border:none;cursor:pointer;margin-top:8px">Eliminar descuento</button>`;
-  container.appendChild(div);
+      <div style="margin-top:10px"><label style="font-size:12px;color:var(--text-muted)">Solo para estancias entre (el descuento se aplica a las noches que caen dentro):</label>
+        <div class="pm-estancias"></div>
+        <button type="button" onclick="addEstancia(this.closest('.promo-row'))" style="font-size:12px;color:var(--accent);background:none;border:1px dashed var(--accent);border-radius:6px;padding:5px 10px;cursor:pointer;margin-top:6px">＋ Añadir rango de fechas</button>
+      </div>
+    </details>
+    <button type="button" onclick="this.closest('.promo-row').remove()" style="font-size:12px;color:#991b1b;background:none;border:none;cursor:pointer;margin-top:8px">Eliminar promoción</button>`;
+  div.querySelector('.pm-nombre').value = p.nombre || '';
+  div.querySelector('.pm-valor').value = p.valor ?? '';
+  div.querySelector('.pm-unidad').value = p.unidad === '€' ? '€' : '%';
+  div.querySelector('.pm-base').value = p.base === 'estancia' ? 'estancia' : 'noche';
+  div.querySelector('.pm-base-wrap').style.display = p.unidad === '€' ? 'block' : 'none';
+  div.querySelector('.pm-comb').checked = !!p.combinable;
+  div.querySelector('.pm-antel').value = c.antelacion_min || '';
+  div.querySelector('.pm-noches').value = c.noches_min || '';
+  div.querySelector('.pm-res-desde').value = c.reserva_desde || '';
+  div.querySelector('.pm-res-hasta').value = c.reserva_hasta || '';
+  div.querySelector('.pm-tipo-noche').value = c.tipo_noche || '';
+  (c.estancias || []).forEach(e => addEstancia(div, e));
+  if (c.antelacion_min || c.noches_min || c.reserva_desde || c.reserva_hasta || c.tipo_noche || (c.estancias || []).length) div.querySelector('.pm-cond').open = true;
+  document.getElementById('promo-rows').appendChild(div);
 }
-
-function updateDiscountRow(sel) {
-  const row = sel.closest('.discount-row');
-  const extra = row.querySelector('.dr-extra');
-  const tipo = sel.value;
-  if (tipo === 'early_booking') {
-    extra.innerHTML = '<div class="field"><label>Días de antelación mínimos</label><input type="number" class="dr-valor" placeholder="30" min="1"></div>';
-  } else if (tipo === 'estancia_minima') {
-    extra.innerHTML = '<div class="field"><label>Número mínimo de noches</label><input type="number" class="dr-valor" placeholder="7" min="1"></div>';
-  } else if (tipo === 'min_pax') {
-    extra.innerHTML = '<div class="field"><label>Número mínimo de personas</label><input type="number" class="dr-valor" placeholder="2" min="1"></div>';
-  } else {
-    extra.innerHTML = '<div class="field"><label>Fecha límite de contratación</label><input type="date" class="dr-valor"></div>';
+function addEstancia(promoDiv, e) {
+  const r = document.createElement('div');
+  r.className = 'pm-est';
+  r.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 32px;gap:8px;margin-top:6px';
+  r.innerHTML = '<input type="date" class="pm-est-desde"><input type="date" class="pm-est-hasta">' +
+    '<button type="button" onclick="this.closest(\'.pm-est\').remove()" style="border:1px solid #fecaca;border-radius:6px;background:none;color:#991b1b;cursor:pointer">×</button>';
+  if (e) { r.querySelector('.pm-est-desde').value = e.desde || ''; r.querySelector('.pm-est-hasta').value = e.hasta || ''; }
+  promoDiv.querySelector('.pm-estancias').appendChild(r);
+}
+function leerPromos() {
+  const out = [];
+  for (const d of document.querySelectorAll('#promo-rows .promo-row')) {
+    const valor = parseFloat(d.querySelector('.pm-valor').value);
+    if (!valor) continue;
+    const cond = {};
+    const antel = parseInt(d.querySelector('.pm-antel').value), noches = parseInt(d.querySelector('.pm-noches').value);
+    if (antel) cond.antelacion_min = antel;
+    if (noches) cond.noches_min = noches;
+    if (d.querySelector('.pm-res-desde').value) cond.reserva_desde = d.querySelector('.pm-res-desde').value;
+    if (d.querySelector('.pm-res-hasta').value) cond.reserva_hasta = d.querySelector('.pm-res-hasta').value;
+    if (d.querySelector('.pm-tipo-noche').value) cond.tipo_noche = d.querySelector('.pm-tipo-noche').value;
+    const est = [...d.querySelectorAll('.pm-est')].map(r => ({ desde: r.querySelector('.pm-est-desde').value, hasta: r.querySelector('.pm-est-hasta').value })).filter(e => e.desde || e.hasta);
+    if (est.length) cond.estancias = est;
+    const unidad = d.querySelector('.pm-unidad').value;
+    out.push({ nombre: d.querySelector('.pm-nombre').value.trim() || ('Descuento ' + valor + unidad), valor, unidad,
+               base: unidad === '€' ? d.querySelector('.pm-base').value : 'noche', combinable: d.querySelector('.pm-comb').checked, cond });
   }
+  return out;
 }
+function leerFinde() { return [...document.querySelectorAll('#f-finde input:checked')].map(i => parseInt(i.value)); }
+function ponerFinde(arr) { const a = arr && arr.length ? arr : FIN_SEMANA_DEFECTO; document.querySelectorAll('#f-finde input').forEach(i => i.checked = a.includes(parseInt(i.value))); }
 
 function addIdRow(proveedor, id) {
   const div = document.createElement('div');
@@ -1054,44 +1086,33 @@ function getFormData() {
   const fechaInicio = document.getElementById('f-fecha-inicio').value;
   const fechaFin = document.getElementById('f-fecha-fin').value;
 
-  // Build daily prices from period rows
-  const precios = {};
-  const priceRows = document.querySelectorAll('.price-row');
-  for (const row of priceRows) {
+  // Precios día a día a partir de los períodos (con precio de fin de semana si lo hay)
+  const finSemana = leerFinde();
+  const precios = {}, periodos = [];
+  for (const row of document.querySelectorAll('.price-row')) {
     const desde = row.querySelector('.pr-desde').value;
     const hasta = row.querySelector('.pr-hasta').value;
     const precio = parseFloat(row.querySelector('.pr-precio').value);
+    const precioFs = parseFloat(row.querySelector('.pr-precio-fs').value);
     if (!desde || !hasta || !precio) continue;
+    periodos.push({ desde, hasta, precio, precio_fs: precioFs || null });
     const cur = new Date(desde);
     const end = new Date(hasta);
     while (cur <= end) {
-      precios[fmtDate(cur)] = precio;
+      precios[fmtDate(cur)] = (precioFs && finSemana.includes(cur.getUTCDay())) ? precioFs : precio;
       cur.setUTCDate(cur.getUTCDate() + 1);
     }
   }
 
-  // Build rules
+  const promociones = leerPromos();
   const reglas = [];
-  const discountRows = document.querySelectorAll('#discount-rows > div');
-  for (const row of discountRows) {
-    const tipo = row.querySelector('.dr-tipo').value;
-    const pct = parseFloat(row.querySelector('.dr-pct').value);
-    const valor = row.querySelector('.dr-valor').value;
-    const desc = row.querySelector('.dr-desc').value.trim();
-    if (!pct || !valor) continue;
-    const regla = { tipo, descuento: pct, descripcion: desc || tipo };
-    if (tipo === 'early_booking') regla.dias = parseInt(valor);
-    else if (tipo === 'estancia_minima') regla.noches = parseInt(valor);
-    else if (tipo === 'min_pax') regla.pax = parseInt(valor);
-    else regla.hasta = valor;
-    reglas.push(regla);
-  }
-
-  const acumulable = document.getElementById('f-acumulable').checked;
+  const tpPax = parseInt(document.getElementById('f-tp-pax').value), tpPct = parseFloat(document.getElementById('f-tp-pct').value);
+  if (tpPax && tpPct) reglas.push({ tipo: 'min_pax', pax: tpPax, descuento: tpPct, descripcion: 'Descuento ' + tpPax + 'ª persona -' + tpPct + '%' });
+  const acumulable = false;
 
   const idsProveedor = leerIds();
 
-  return { ciudad, nombre, divisa, desayuno, desayunoIncluido, fechaInicio, fechaFin, precios, reglas, acumulable, idsProveedor };
+  return { ciudad, nombre, divisa, desayuno, desayunoIncluido, fechaInicio, fechaFin, precios, periodos, finSemana, promociones, reglas, acumulable, idsProveedor };
 }
 
 function buildFormPreview() {
@@ -1130,8 +1151,8 @@ function buildFormPreview() {
     html += `</tbody></table>`;
   }
 
-  if (d.reglas.length > 0)
-    html += `<div class="preview-conditions">⚡ ${d.reglas.map(r => r.descripcion).join(' · ')}${d.acumulable ? ' — <strong>acumulables</strong>' : ''}</div>`;
+  if (d.promociones.length > 0 || d.reglas.length > 0)
+    html += `<div class="preview-conditions">⚡ ${d.promociones.map(p => p.nombre + ' (' + p.valor + (p.unidad === '€' ? ' € ' + (p.base === 'estancia' ? 'por estancia' : 'por noche') : '%') + (p.combinable ? ', se suma' : '') + ')').concat(d.reglas.map(r => r.descripcion)).join(' · ')}</div>`;
 
   html += `</div>`;
 
@@ -1152,13 +1173,13 @@ async function confirmFormImport() {
   btn.textContent = 'Guardando...';
   btn.disabled = true;
   try {
-    const payload = { ciudad: d.ciudad, nombre: d.nombre, divisa: d.divisa, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, precios: d.precios, reglas: d.reglas, acumulable: d.acumulable, ids_proveedor: d.idsProveedor };
+    const payload = { ciudad: d.ciudad, nombre: d.nombre, divisa: d.divisa, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, precios: d.precios, reglas: d.reglas, acumulable: false, ids_proveedor: d.idsProveedor, promociones: d.promociones, fin_semana: d.finSemana, periodos: d.periodos };
     if (window._editingHotelId) {
       const { error } = await sb.from('hoteles_importados').update(payload).eq('id', window._editingHotelId);
       if (error) throw error;
       window._editingHotelId = null;
     } else {
-      await saveHotel(d.ciudad, d.nombre, { precios: d.precios, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, reglas: d.reglas, divisa: d.divisa, acumulable: d.acumulable, ids_proveedor: d.idsProveedor });
+      await saveHotel(d.ciudad, d.nombre, { precios: d.precios, desayuno: d.desayuno, desayuno_incluido: d.desayunoIncluido || false, reglas: d.reglas, divisa: d.divisa, acumulable: false, ids_proveedor: d.idsProveedor, promociones: d.promociones, fin_semana: d.finSemana, periodos: d.periodos });
     }
     closeImport();
     await populateCities();
@@ -1193,7 +1214,7 @@ async function openManage() {
       html += '<div style="font-size:11px;color:var(--text-muted);margin-top:3px">' + fechas.length + ' fechas · ' + (h.divisa||'EUR') + ' · ';
       html += (minP===maxP ? sym+minP : sym+minP+'–'+sym+maxP) + '/noche · Desayuno: ' + (h.desayuno>0?sym+h.desayuno+'/pax':'no');
       if (h.ids_proveedor && h.ids_proveedor.length) html += ' · 🔗 ' + h.ids_proveedor.map(x => (x.proveedor ? x.proveedor + ' ' : '') + x.id).join(', ');
-      if (h.reglas && h.reglas.length) html += ' · ⚡ ' + h.reglas.length + ' descuento' + (h.reglas.length>1?'s':'') + (h.acumulable ? ' (acumulables)' : '');
+      { const np = promosDe(h).length; if (np) html += ' · ⚡ ' + np + ' promoci' + (np>1?'ones':'ón'); }
       html += '</div></div>';
       if (isAdmin) {
         html += '<div style="display:flex;gap:8px">';
@@ -1248,67 +1269,31 @@ async function editHotel(id) {
     document.getElementById('f-fecha-inicio').value = fechas[0];
     document.getElementById('f-fecha-fin').value = fechas[fechas.length-1];
   }
+  ponerFinde(data.fin_semana);
   const container = document.getElementById('price-rows');
   container.innerHTML = '';
-  const grupos = []; let cur = null;
-  for (const f of fechas) {
-    if (cur && cur.p === precios[f] && f === diaSiguiente(cur.hasta)) cur.hasta = f;
-    else { cur = { desde: f, hasta: f, p: precios[f] }; grupos.push(cur); }
+  let filas = data.periodos;
+  if (!filas || !filas.length) {
+    filas = []; let cur = null;
+    for (const f of fechas) {
+      if (cur && cur.precio === precios[f] && f === diaSiguiente(cur.hasta)) cur.hasta = f;
+      else { cur = { desde: f, hasta: f, precio: precios[f], precio_fs: null }; filas.push(cur); }
+    }
   }
-  for (const g of grupos) {
+  for (const g of filas) {
     addPriceRow();
     const rows = container.querySelectorAll('.price-row');
     const last = rows[rows.length-1];
     last.querySelector('.pr-desde').value = g.desde;
     last.querySelector('.pr-hasta').value = g.hasta;
-    last.querySelector('.pr-precio').value = g.p;
+    last.querySelector('.pr-precio').value = g.precio;
+    last.querySelector('.pr-precio-fs').value = g.precio_fs || '';
   }
-  const dContainer = document.getElementById('discount-rows');
-  dContainer.innerHTML = '';
-  for (const r of (data.reglas || [])) {
-    // Build discount row manually to avoid timing issues
-    const discDiv = document.createElement('div');
-    discDiv.className = 'discount-row';
-    discDiv.style.cssText = 'border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:10px;background:var(--bg)';
-    
-    // Extra field HTML based on type
-    let extraHtml = '';
-    const val = r.dias != null ? r.dias : (r.noches != null ? r.noches : (r.pax != null ? r.pax : (r.hasta || '')));
-    if (r.tipo === 'early_booking') {
-      extraHtml = '<div class="field"><label>Días de antelación mínimos</label><input type="number" class="dr-valor" value="' + val + '" min="1"></div>';
-    } else if (r.tipo === 'estancia_minima') {
-      extraHtml = '<div class="field"><label>Número mínimo de noches</label><input type="number" class="dr-valor" value="' + val + '" min="1"></div>';
-    } else if (r.tipo === 'min_pax') {
-      extraHtml = '<div class="field"><label>Número mínimo de personas</label><input type="number" class="dr-valor" value="' + val + '" min="1"></div>';
-    } else {
-      extraHtml = '<div class="field"><label>Fecha límite de contratación</label><input type="date" class="dr-valor" value="' + val + '"></div>';
-    }
-    
-    discDiv.innerHTML = [
-      '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">',
-        '<div class="field"><label>Tipo de descuento</label>',
-          '<select class="dr-tipo" onchange="updateDiscountRow(this)">',
-            '<option value="early_booking">Early booking</option>',
-            '<option value="estancia_minima">Estancia m\u00ednima</option>',
-            '<option value="min_pax">M\u00ednimo de personas</option>',
-            '<option value="fecha_contratacion">Fecha l\u00edmite</option>',
-          '</select></div>',
-        '<div class="field"><label>Descuento (%)</label>',
-          '<input type="number" class="dr-pct" value="' + r.descuento + '" min="1" max="100">',
-        '</div>',
-      '</div>',
-      '<div class="dr-extra" style="margin-bottom:10px">' + extraHtml + '</div>',
-      '<div class="field"><label>Descripci\u00f3n</label>',
-        '<input type="text" class="dr-desc" value="' + (r.descripcion||'').replace(/"/g, '&quot;') + '">',
-      '</div>',
-      '<button onclick="this.closest(\'.discount-row\').remove()" style="font-size:12px;color:#991b1b;background:none;border:none;cursor:pointer;margin-top:8px">Eliminar descuento</button>'
-    ].join('');
-    
-    dContainer.appendChild(discDiv);
-    // Set selected option after appending
-    discDiv.querySelector('.dr-tipo').value = r.tipo;
-  }
-  document.getElementById('f-acumulable').checked = data.acumulable === true;
+  document.getElementById('promo-rows').innerHTML = '';
+  promosDe(data).forEach(p => addPromo(p));
+  const tp = tercerPaxDe(data);
+  document.getElementById('f-tp-pax').value = tp ? tp.pax : '';
+  document.getElementById('f-tp-pct').value = tp ? tp.descuento : '';
   document.getElementById('id-rows').innerHTML = '';
   (data.ids_proveedor || []).forEach(x => addIdRow(x.proveedor, x.id));
   window._editingHotelId = id;
