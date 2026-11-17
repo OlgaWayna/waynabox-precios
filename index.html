@@ -534,10 +534,43 @@ async function aplicarParametrosOrbit(p) {
     await calcular();
     return;
   }
-  // Varias opciones: se dejan solo esas en el desplegable para que Ops elija
+  // Varias opciones: se calcula el precio de cada una y se muestran juntas, de más barata a más cara
   hotelSel.innerHTML = '<option value="">— Elige habitación —</option>' +
     elegidas.map(c => '<option value="' + c.nombre.replace(/"/g, '&quot;') + '">' + c.nombre + '</option>').join('');
-  aviso('<div class="alert info"><strong>' + elegidas.length + ' tarifas para este hotel</strong><br>Elige la habitación en el desplegable "Hotel" y pulsa Calcular.</div>');
+  const habs = parseInt(document.getElementById('habitaciones').value) || 1;
+  const today = fmtLocalDate(new Date());
+  const filas = elegidas.map(c => ({ c, r: precioRapido(c.h, noches, checkin, today, pax, habs) }))
+                        .sort((a, b) => (a.r.total ?? Infinity) - (b.r.total ?? Infinity));
+  let html = '<div class="alert info" style="margin-bottom:12px"><strong>' + elegidas.length + ' habitaciones posibles para ' + pax + ' persona' + (pax > 1 ? 's' : '') +
+             '</strong> · ' + noches.length + ' noche' + (noches.length > 1 ? 's' : '') + '. Pulsa una para ver el detalle.</div>';
+  html += '<table class="breakdown-table"><thead><tr><th>Habitación</th><th>Promoción</th><th>Total</th><th></th></tr></thead><tbody>';
+  for (const { c, r } of filas) {
+    const divisa = c.h.divisa || 'EUR';
+    const total = r.total == null ? '<span style="color:var(--text-muted)">Sin tarifa completa</span>'
+                                  : '<strong>' + fmt(r.total, currencySymbol(divisa)) + '</strong>' + (r.base > r.total ? ' <span style="text-decoration:line-through;color:var(--text-muted);font-size:12px">' + fmt(r.base, currencySymbol(divisa)) + '</span>' : '');
+    html += '<tr><td>' + c.nombre + '</td><td style="color:var(--success)">' + (r.promo || '—') + '</td><td>' + total + '</td>' +
+            '<td><button type="button" class="btn-header" style="color:var(--accent);border:1px solid var(--accent);background:none;padding:5px 10px;border-radius:5px;cursor:pointer" data-hab="' + c.nombre.replace(/"/g, '&quot;') + '" onclick="verHabitacion(this.dataset.hab)">Ver detalle</button></td></tr>';
+  }
+  html += '</tbody></table>';
+  if (desayunoSi) html += '<div class="rate-note">Los totales incluyen el desayuno cuando el hotel lo cobra aparte.</div>';
+  aviso(html);
+}
+
+// Precio total de una ficha (habitación) para unas noches, sin pintar nada
+function precioRapido(h, noches, checkin, today, pax, habs) {
+  if (!noches.length || !noches.every(d => h.precios && h.precios[d] !== undefined)) return { total: null };
+  const nochesHab = noches.map(d => ({ fecha: d, precio: h.precios[d] }));
+  const { base, opciones } = opcionesPromo(h, nochesHab, checkin, today);
+  const mejor = opciones[0];
+  let hab = (mejor ? mejor.total : base) * habs;
+  const tp = tercerPaxDe(h);
+  if (tp && pax >= tp.pax) hab += (hab / noches.length / 2) * (1 - tp.descuento / 100) * noches.length;
+  const desayuno = (desayunoSi && h.desayuno > 0) ? h.desayuno * pax * noches.length : 0;
+  return { total: hab + desayuno, base: base * habs + desayuno + (hab - (mejor ? mejor.total : base) * habs), promo: mejor ? mejor.promos.map(p => p.nombre).join(' + ') : '' };
+}
+async function verHabitacion(nombre) {
+  document.getElementById('hotel').value = nombre;
+  await calcular();
 }
 
 async function aplicarParametrosURL() {
