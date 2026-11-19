@@ -124,6 +124,10 @@
   .manage-imported:hover { color: var(--accent); }
   .price-row input, .dr-extra input { font-size: 13px; }
   #promo-rows .field label { font-size: 11px; }
+  .price-row { display:grid; grid-template-columns:1fr 1fr 80px 80px 36px; gap:8px; margin-bottom:10px; align-items:end; }
+  .price-row .col-bb { display:none; }
+  #price-rows.con-bb .price-row { grid-template-columns:1fr 1fr 62px 62px 62px 62px 32px; gap:6px; }
+  #price-rows.con-bb .price-row .col-bb { display:block; }
   @media (max-width: 600px) {
     .field-grid, .field-grid.three { grid-template-columns: 1fr; }
     .result-hotel-name { max-width: 100%; }
@@ -246,6 +250,14 @@
             <input type="date" id="f-fecha-fin">
           </div>
         </div>
+        <div class="field" style="margin-bottom:10px">
+          <label>¿Cómo da el hotel el desayuno?</label>
+          <select id="f-desayuno-modo" onchange="cambiarModoDesayuno()">
+            <option value="persona">Suplemento por persona (o no hay desayuno)</option>
+            <option value="bb">Tarifa con desayuno (BB): precio por habitación</option>
+          </select>
+        </div>
+        <div id="desayuno-persona">
         <div class="field-grid" style="margin-bottom:4px">
           <div class="field">
             <label>Desayuno (precio por persona)</label>
@@ -257,6 +269,8 @@
           </div>
         </div>
         <div style="font-size:11px;color:var(--text-muted);margin:4px 0 14px">En la divisa del contrato. Pon 0 si no hay desayuno disponible. Rellena el de fin de semana solo si es distinto.</div>
+        </div>
+        <div id="desayuno-bb-nota" style="display:none;font-size:11px;color:var(--text-muted);margin:-4px 0 14px">En el paso 2 pondrás, en cada período, el precio por habitación sin desayuno (RO) y con desayuno (BB).</div>
         <div class="field" style="margin-bottom:14px">
           <label>¿Desayuno incluido en tarifa base?</label>
           <div class="toggle-group">
@@ -364,6 +378,7 @@ async function loadImported() {
         precios: row.precios,
         desayuno: row.desayuno,
         desayuno_fs: row.desayuno_fs ?? null,
+        precios_bb: row.precios_bb || null,
         desayuno_incluido: row.desayuno_incluido || false,
         reglas: row.reglas || [],
         acumulable: row.acumulable === true,
@@ -389,6 +404,7 @@ async function saveHotel(ciudad, nombre, hotelData) {
     divisa: hotelData.divisa || 'EUR',
     desayuno: hotelData.desayuno || 0,
     desayuno_fs: hotelData.desayuno_fs ?? null,
+    precios_bb: hotelData.precios_bb || null,
     desayuno_incluido: hotelData.desayuno_incluido || false,
     precios: hotelData.precios,
     reglas: hotelData.reglas || [],
@@ -424,6 +440,7 @@ async function getMergedData() {
           ...merged[ciudad][baseKey],
           desayuno: imp.desayuno,
           desayuno_fs: imp.desayuno_fs ?? null,
+          precios_bb: imp.precios_bb || null,
           desayuno_incluido: imp.desayuno_incluido || false,
           divisa: imp.divisa || merged[ciudad][baseKey].divisa || 'EUR',
           reglas: imp.reglas || [],
@@ -568,14 +585,15 @@ async function aplicarParametrosOrbit(p) {
 
 // Precio total de una ficha (habitación) para unas noches, sin pintar nada
 function precioRapido(h, noches, checkin, today, pax, habs) {
-  if (!noches.length || !noches.every(d => h.precios && h.precios[d] !== undefined)) return { total: null };
-  const nochesHab = noches.map(d => ({ fecha: d, precio: h.precios[d] }));
+  const { precios: pe, nochesBB } = preciosEfectivos(h);
+  if (!noches.length || !noches.every(d => pe[d] !== undefined)) return { total: null };
+  const nochesHab = noches.map(d => ({ fecha: d, precio: pe[d] }));
   const { base, opciones } = opcionesPromo(h, nochesHab, checkin, today);
   const mejor = opciones[0];
   let hab = (mejor ? mejor.total : base) * habs;
   const tp = tercerPaxDe(h);
   if (tp && pax >= tp.pax) hab += (hab / noches.length / 2) * (1 - tp.descuento / 100) * noches.length;
-  const desayuno = desayunoSi ? desayunoTotalDe(h, noches, pax) : 0;
+  const desayuno = desayunoSi ? desayunoTotalDe(h, noches.filter(d => !nochesBB.has(d)), pax) : 0;
   return { total: hab + desayuno, base: base * habs + desayuno + (hab - (mejor ? mejor.total : base) * habs), promo: mejor ? mejor.promos.map(p => p.nombre).join(' + ') : '' };
 }
 async function verHabitacion(nombre) {
@@ -753,6 +771,14 @@ function tercerPaxDe(h) {
   return pax ? { pax, descuento: r.descuento, label: r.descripcion || ('Descuento ' + pax + 'ª persona') } : null;
 }
 
+// Precios de habitación a usar: con "Incluir desayuno" y tarifa BB en la ficha, se usa la BB en las noches que la tengan
+function preciosEfectivos(h) {
+  const bb = h.precios_bb || {};
+  if (!desayunoSi || !Object.keys(bb).length) return { precios: h.precios || {}, nochesBB: new Set() };
+  const p = { ...(h.precios || {}) }, n = new Set();
+  for (const d in bb) { p[d] = bb[d]; n.add(d); }
+  return { precios: p, nochesBB: n };
+}
 // Desayuno total (por persona y noche); el de fin de semana, si la ficha lo tiene, se aplica a esas noches
 function desayunoTotalDe(h, noches, pax) {
   if (!(h.desayuno > 0 || h.desayuno_fs > 0)) return 0;
@@ -829,7 +855,7 @@ async function calcular() {
 
   const hotelClean     = hotel.replace(' ★', '').trim();
   const hotelData      = merged[ciudad][hotel] || merged[ciudad][hotelClean];
-  const precios        = hotelData.precios;
+  const { precios, nochesBB } = preciosEfectivos(hotelData);
   const desayunoPorPax = hotelData.desayuno || 0;
   const divisa         = hotelData.divisa || 'EUR';
   const isNonEur       = divisa !== 'EUR';
@@ -842,7 +868,8 @@ async function calcular() {
   if (found.length === 0) { contentDiv.innerHTML = '<div class="alert error"><strong>Sin tarifa disponible</strong><br>No hay precios para este período.</div>'; return; }
 
   const habTotal      = found.reduce((s,d) => s + precios[d], 0) * habs;
-  const desayunoTotal = desayunoSi ? desayunoTotalDe(hotelData, found, pax) : 0;
+  const desayunoTotal = desayunoSi ? desayunoTotalDe(hotelData, found.filter(d => !nochesBB.has(d)), pax) : 0;
+  const conBB = found.filter(d => nochesBB.has(d)).length;
   const tieneDesayuno = desayunoTotal > 0;
 
   // Promociones (por habitación, noche a noche) y suplemento de 3ª persona
@@ -931,6 +958,8 @@ async function calcular() {
 
   if (missing.length > 0)
     html += '<div class="alert warning" style="margin-top:14px"><strong>⚠️ ' + missing.length + ' noche' + (missing.length>1?'s':'') + ' sin tarifa</strong><br><table class="no-rate-table"><tbody>' + missing.map(d => '<tr><td>' + fmtDateDisplay(d) + '</td><td>Sin tarifa</td></tr>').join('') + '</tbody></table></div>';
+  if (conBB)
+    html += '<div class="alert info" style="margin-top:12px">Precio con desayuno: tarifa BB del hotel (por habitación)' + (conBB < found.length ? ' en ' + conBB + ' de ' + found.length + ' noches; el resto sin tarifa BB' : '') + '.</div>';
   if (desayunoSi && desayunoPorPax === 0 && hotelData.desayuno_incluido === true)
     html += '<div class="alert info" style="margin-top:12px">Este hotel incluye el desayuno en la tarifa base.</div>';
 
@@ -955,6 +984,8 @@ function openImport() {
   document.getElementById('f-nombre').value = '';
   document.getElementById('f-desayuno').value = '0';
   document.getElementById('f-desayuno-fs').value = '';
+  document.getElementById('f-desayuno-modo').value = 'persona';
+  cambiarModoDesayuno();
   document.getElementById('f-divisa').value = 'EUR';
   document.getElementById('id-rows').innerHTML = '';
   document.getElementById('promo-rows').innerHTML = '';
@@ -996,7 +1027,6 @@ function addPriceRow() {
   const idx = container.children.length;
   const div = document.createElement('div');
   div.className = 'price-row';
-  div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 80px 80px 36px;gap:8px;margin-bottom:10px;align-items:end';
   div.innerHTML = `
     <div class="field">
       ${idx === 0 ? '<label>Desde</label>' : ''}
@@ -1007,17 +1037,26 @@ function addPriceRow() {
       <input type="date" class="pr-hasta" placeholder="Hasta">
     </div>
     <div class="field">
-      ${idx === 0 ? '<label>Precio/noche</label>' : ''}
+      ${idx === 0 ? '<label class="lbl-precio">Precio/noche</label>' : ''}
       <input type="number" class="pr-precio" placeholder="0.00" min="0" step="0.01">
     </div>
     <div class="field">
-      ${idx === 0 ? '<label>Fin de semana</label>' : ''}
+      ${idx === 0 ? '<label class="lbl-precio-fs">Fin de semana</label>' : ''}
       <input type="number" class="pr-precio-fs" placeholder="igual" min="0" step="0.01" title="Precio de las noches de fin de semana. Vacío = mismo precio.">
+    </div>
+    <div class="field col-bb">
+      ${idx === 0 ? '<label>BB</label>' : ''}
+      <input type="number" class="pr-bb" placeholder="0.00" min="0" step="0.01" title="Precio por habitación con desayuno">
+    </div>
+    <div class="field col-bb">
+      ${idx === 0 ? '<label>BB finde</label>' : ''}
+      <input type="number" class="pr-bb-fs" placeholder="igual" min="0" step="0.01" title="Precio con desayuno de las noches de fin de semana. Vacío = mismo precio BB.">
     </div>
     <div style="${idx === 0 ? 'padding-top:22px' : ''}">
       <button onclick="this.closest('.price-row').remove()" style="width:36px;height:38px;border:1px solid #fecaca;border-radius:6px;background:none;color:#991b1b;cursor:pointer;font-size:16px">×</button>
     </div>`;
   container.appendChild(div);
+  ponerEtiquetasPrecio();
 
   // Pre-fill dates based on previous row
   if (idx > 0) {
@@ -1129,31 +1168,50 @@ function leerIds() {
     .filter(x => x.id);
 }
 
+function cambiarModoDesayuno() {
+  const bb = document.getElementById('f-desayuno-modo').value === 'bb';
+  document.getElementById('desayuno-persona').style.display = bb ? 'none' : 'block';
+  document.getElementById('desayuno-bb-nota').style.display = bb ? 'block' : 'none';
+  document.getElementById('price-rows').classList.toggle('con-bb', bb);
+  ponerEtiquetasPrecio();
+}
+function ponerEtiquetasPrecio() {
+  const bb = document.getElementById('f-desayuno-modo').value === 'bb';
+  document.querySelectorAll('#price-rows .lbl-precio').forEach(l => l.textContent = bb ? 'RO' : 'Precio/noche');
+  document.querySelectorAll('#price-rows .lbl-precio-fs').forEach(l => l.textContent = bb ? 'RO finde' : 'Fin de semana');
+}
+
 function getFormData() {
   const ciudad = document.getElementById('f-ciudad').value.trim();
   const nombre = document.getElementById('f-nombre').value.trim();
   const divisa = document.getElementById('f-divisa').value;
-  const desayuno = parseFloat(document.getElementById('f-desayuno').value) || 0;
+  const enBB = document.getElementById('f-desayuno-modo').value === 'bb';
+  const desayuno = enBB ? 0 : (parseFloat(document.getElementById('f-desayuno').value) || 0);
   const desayunoFsTxt = document.getElementById('f-desayuno-fs').value;
-  const desayunoFs = desayunoFsTxt === '' ? null : (parseFloat(desayunoFsTxt) || 0);
+  const desayunoFs = (enBB || desayunoFsTxt === '') ? null : (parseFloat(desayunoFsTxt) || 0);
   const desayunoIncluido = _desayunoIncluido;
   const fechaInicio = document.getElementById('f-fecha-inicio').value;
   const fechaFin = document.getElementById('f-fecha-fin').value;
 
   // Precios día a día a partir de los períodos (con precio de fin de semana si lo hay)
   const finSemana = leerFinde();
-  const precios = {}, periodos = [];
+  const modoBB = document.getElementById('f-desayuno-modo').value === 'bb';
+  const precios = {}, preciosBB = {}, periodos = [];
   for (const row of document.querySelectorAll('.price-row')) {
     const desde = row.querySelector('.pr-desde').value;
     const hasta = row.querySelector('.pr-hasta').value;
     const precio = parseFloat(row.querySelector('.pr-precio').value);
     const precioFs = parseFloat(row.querySelector('.pr-precio-fs').value);
+    const bb = parseFloat(row.querySelector('.pr-bb').value);
+    const bbFs = parseFloat(row.querySelector('.pr-bb-fs').value);
     if (!desde || !hasta || !precio) continue;
-    periodos.push({ desde, hasta, precio, precio_fs: precioFs || null });
+    periodos.push({ desde, hasta, precio, precio_fs: precioFs || null, precio_bb: (modoBB && bb) || null, precio_bb_fs: (modoBB && bbFs) || null });
     const cur = new Date(desde);
     const end = new Date(hasta);
     while (cur <= end) {
-      precios[fmtDate(cur)] = (precioFs && finSemana.includes(cur.getUTCDay())) ? precioFs : precio;
+      const esFinde = finSemana.includes(cur.getUTCDay());
+      precios[fmtDate(cur)] = (precioFs && esFinde) ? precioFs : precio;
+      if (modoBB && bb) preciosBB[fmtDate(cur)] = (bbFs && esFinde) ? bbFs : bb;
       cur.setUTCDate(cur.getUTCDate() + 1);
     }
   }
@@ -1166,7 +1224,7 @@ function getFormData() {
 
   const idsProveedor = leerIds();
 
-  return { ciudad, nombre, divisa, desayuno, desayunoFs, desayunoIncluido, fechaInicio, fechaFin, precios, periodos, finSemana, promociones, reglas, acumulable, idsProveedor };
+  return { ciudad, nombre, divisa, desayuno, desayunoFs, desayunoIncluido, fechaInicio, fechaFin, precios, preciosBB, periodos, finSemana, promociones, reglas, acumulable, idsProveedor };
 }
 
 function buildFormPreview() {
@@ -1227,13 +1285,13 @@ async function confirmFormImport() {
   btn.textContent = 'Guardando...';
   btn.disabled = true;
   try {
-    const payload = { ciudad: d.ciudad, nombre: d.nombre, divisa: d.divisa, desayuno: d.desayuno, desayuno_fs: d.desayunoFs, desayuno_incluido: d.desayunoIncluido || false, precios: d.precios, reglas: d.reglas, acumulable: false, ids_proveedor: d.idsProveedor, promociones: d.promociones, fin_semana: d.finSemana, periodos: d.periodos };
+    const payload = { ciudad: d.ciudad, nombre: d.nombre, divisa: d.divisa, desayuno: d.desayuno, desayuno_fs: d.desayunoFs, desayuno_incluido: d.desayunoIncluido || false, precios: d.precios, precios_bb: Object.keys(d.preciosBB).length ? d.preciosBB : null, reglas: d.reglas, acumulable: false, ids_proveedor: d.idsProveedor, promociones: d.promociones, fin_semana: d.finSemana, periodos: d.periodos };
     if (window._editingHotelId) {
       const { error } = await sb.from('hoteles_importados').update(payload).eq('id', window._editingHotelId);
       if (error) throw error;
       window._editingHotelId = null;
     } else {
-      await saveHotel(d.ciudad, d.nombre, { precios: d.precios, desayuno: d.desayuno, desayuno_fs: d.desayunoFs, desayuno_incluido: d.desayunoIncluido || false, reglas: d.reglas, divisa: d.divisa, acumulable: false, ids_proveedor: d.idsProveedor, promociones: d.promociones, fin_semana: d.finSemana, periodos: d.periodos });
+      await saveHotel(d.ciudad, d.nombre, { precios: d.precios, precios_bb: Object.keys(d.preciosBB).length ? d.preciosBB : null, desayuno: d.desayuno, desayuno_fs: d.desayunoFs, desayuno_incluido: d.desayunoIncluido || false, reglas: d.reglas, divisa: d.divisa, acumulable: false, ids_proveedor: d.idsProveedor, promociones: d.promociones, fin_semana: d.finSemana, periodos: d.periodos });
     }
     closeImport();
     await populateCities();
@@ -1315,6 +1373,8 @@ async function editHotel(id) {
   document.getElementById('f-divisa').value = data.divisa || 'EUR';
   document.getElementById('f-desayuno').value = data.desayuno || 0;
   document.getElementById('f-desayuno-fs').value = data.desayuno_fs ?? '';
+  document.getElementById('f-desayuno-modo').value = (data.precios_bb && Object.keys(data.precios_bb).length) ? 'bb' : 'persona';
+  cambiarModoDesayuno();
   _desayunoIncluido = data.desayuno_incluido || false;
   if(document.getElementById('btn-desayuno-si')) document.getElementById('btn-desayuno-si').classList.toggle('active', _desayunoIncluido);
   if(document.getElementById('btn-desayuno-no')) document.getElementById('btn-desayuno-no').classList.toggle('active', !_desayunoIncluido);
@@ -1330,9 +1390,10 @@ async function editHotel(id) {
   let filas = data.periodos;
   if (!filas || !filas.length) {
     filas = []; let cur = null;
+    const bbs = data.precios_bb || {};
     for (const f of fechas) {
-      if (cur && cur.precio === precios[f] && f === diaSiguiente(cur.hasta)) cur.hasta = f;
-      else { cur = { desde: f, hasta: f, precio: precios[f], precio_fs: null }; filas.push(cur); }
+      if (cur && cur.precio === precios[f] && (cur.precio_bb ?? null) === (bbs[f] ?? null) && f === diaSiguiente(cur.hasta)) cur.hasta = f;
+      else { cur = { desde: f, hasta: f, precio: precios[f], precio_fs: null, precio_bb: bbs[f] ?? null, precio_bb_fs: null }; filas.push(cur); }
     }
   }
   for (const g of filas) {
@@ -1343,6 +1404,8 @@ async function editHotel(id) {
     last.querySelector('.pr-hasta').value = g.hasta;
     last.querySelector('.pr-precio').value = g.precio;
     last.querySelector('.pr-precio-fs').value = g.precio_fs || '';
+    last.querySelector('.pr-bb').value = g.precio_bb || '';
+    last.querySelector('.pr-bb-fs').value = g.precio_bb_fs || '';
   }
   document.getElementById('promo-rows').innerHTML = '';
   promosDe(data).forEach(p => addPromo(p));
