@@ -487,7 +487,7 @@ function capacidadFicha(nombre) {
   if (/\s(QUAD|QUADRUPLA|CUADRUPLE|4PAX)\s/.test(n)) return 4;
   if (/\s(TRIPLE|TRIPLA|TRP|3PAX)\s/.test(n)) return 3;
   if (/\s(SINGLE|SGL|DUS|DUI|1PAX|INDIVIDUAL)\s/.test(n)) return 1;
-  if (/\s(DOBLE|DOUBLE|DBL|TWIN|2PAX)\s/.test(n)) return 2;
+  if (/\s(DOBLE|DOUBLE|DBL|TWIN|QUEEN|KING|MATRIMONIAL|2PAX)\s/.test(n)) return 2;
   return null;
 }
 
@@ -525,7 +525,8 @@ async function aplicarParametrosOrbit(p) {
   const conPrecio = lista.filter(c => noches.length && noches.every(d => c.h.precios && c.h.precios[d] !== undefined));
   if (conPrecio.length) lista = conPrecio;
   const pax = parseInt(document.getElementById('pax').value) || 0;
-  const porPax = lista.filter(c => capacidadFicha(c.nombre) === pax);
+  // Habitaciones de esa capacidad + las que no dicen capacidad en el nombre (p. ej. "CITY VIEW")
+  const porPax = lista.filter(c => capacidadFicha(c.nombre) === pax || capacidadFicha(c.nombre) === null);
   const elegidas = porPax.length ? porPax : lista;
 
   const hotelSel = document.getElementById('hotel');
